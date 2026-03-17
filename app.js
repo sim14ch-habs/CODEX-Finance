@@ -58,11 +58,16 @@ const TYPE_LABELS = {
   saving: "Epargne",
 };
 
-let state = loadState();
-
 const $ = (id) => document.getElementById(id);
-const cloneDefaults = () => JSON.parse(JSON.stringify(DEFAULT_STATE));
-const getLast = (items) => items[items.length - 1];
+function cloneDefaults() {
+  return JSON.parse(JSON.stringify(DEFAULT_STATE));
+}
+
+function getLast(items) {
+  return items[items.length - 1];
+}
+
+let state = loadState();
 
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
