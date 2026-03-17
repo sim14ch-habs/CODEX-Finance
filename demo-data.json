@@ -1,100 +1,45 @@
 {
   "household": {
-    "householdName": "Budget duo",
-    "partnerOne": "Alex",
-    "partnerTwo": "Camille",
+    "householdName": "Budget Simon",
+    "partnerOne": "Simon",
+    "partnerTwo": "Ma conjointe",
     "currency": "CAD",
-    "currentBalance": 6420,
+    "currentBalance": 998,
     "projectionMonths": 6,
-    "safetyBuffer": 4000
+    "safetyBuffer": 1500
   },
   "paychecks": [
     {
-      "id": "pay001",
-      "owner": "Alex",
-      "label": "Paie emploi principal",
-      "amount": 2150,
+      "id": "pay_simon_abb",
+      "owner": "Simon",
+      "label": "Paie ABB",
+      "amount": 1988,
       "frequency": "biweekly",
-      "nextDate": "2026-03-20"
-    },
-    {
-      "id": "pay002",
-      "owner": "Camille",
-      "label": "Paie clinique",
-      "amount": 1780,
-      "frequency": "biweekly",
-      "nextDate": "2026-03-27"
+      "nextDate": "2026-03-25"
     }
   ],
   "bills": [
     {
-      "id": "bill001",
-      "owner": "Budget duo",
-      "label": "Loyer",
-      "category": "Logement",
-      "amount": 1890,
-      "frequency": "monthly",
-      "nextDate": "2026-03-23"
-    },
-    {
-      "id": "bill002",
-      "owner": "Budget duo",
-      "label": "Epicerie budgetee",
-      "category": "Vie courante",
-      "amount": 260,
-      "frequency": "weekly",
-      "nextDate": "2026-03-19"
-    },
-    {
-      "id": "bill003",
-      "owner": "Alex",
-      "label": "Auto",
-      "category": "Transport",
-      "amount": 410,
-      "frequency": "monthly",
-      "nextDate": "2026-03-29"
+      "id": "bill_simon_mnp",
+      "owner": "Simon",
+      "label": "MNP",
+      "category": "Finances",
+      "amount": 400,
+      "frequency": "biweekly",
+      "nextDate": "2026-03-26"
     }
   ],
   "savingsGoals": [
     {
-      "id": "sav001",
-      "owner": "Budget duo",
+      "id": "saving_simon_urgence",
+      "owner": "Simon",
       "label": "Fonds d'urgence",
-      "targetAmount": 12000,
-      "currentAmount": 4800,
-      "contributionAmount": 350,
-      "frequency": "biweekly",
-      "nextDate": "2026-03-22"
-    },
-    {
-      "id": "sav002",
-      "owner": "Camille",
-      "label": "Voyage ete",
-      "targetAmount": 3500,
-      "currentAmount": 1200,
-      "contributionAmount": 180,
+      "targetAmount": 1500,
+      "currentAmount": 300,
+      "contributionAmount": 300,
       "frequency": "monthly",
-      "nextDate": "2026-03-26"
+      "nextDate": "2026-04-09"
     }
   ],
-  "transactions": [
-    {
-      "id": "txn001",
-      "owner": "Budget duo",
-      "date": "2026-03-24",
-      "type": "expense",
-      "label": "Entretien voiture",
-      "amount": 320,
-      "notes": "Garage local"
-    },
-    {
-      "id": "txn002",
-      "owner": "Alex",
-      "date": "2026-04-01",
-      "type": "income",
-      "label": "Remboursement assurance",
-      "amount": 180,
-      "notes": ""
-    }
-  ]
+  "transactions": []
 }

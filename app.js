@@ -2,17 +2,47 @@ const STORAGE_KEY = "budget-duo-v1";
 
 const DEFAULT_STATE = {
   household: {
-    householdName: "Budget du foyer",
-    partnerOne: "Moi",
+    householdName: "Budget Simon",
+    partnerOne: "Simon",
     partnerTwo: "Ma conjointe",
     currency: "CAD",
-    currentBalance: 0,
+    currentBalance: 998,
     projectionMonths: 6,
-    safetyBuffer: 3000,
+    safetyBuffer: 1500,
   },
-  paychecks: [],
-  bills: [],
-  savingsGoals: [],
+  paychecks: [
+    {
+      id: "pay_simon_abb",
+      owner: "Simon",
+      label: "Paie ABB",
+      amount: 1988,
+      frequency: "biweekly",
+      nextDate: "2026-03-25",
+    },
+  ],
+  bills: [
+    {
+      id: "bill_simon_mnp",
+      owner: "Simon",
+      label: "MNP",
+      category: "Finances",
+      amount: 400,
+      frequency: "biweekly",
+      nextDate: "2026-03-26",
+    },
+  ],
+  savingsGoals: [
+    {
+      id: "saving_simon_urgence",
+      owner: "Simon",
+      label: "Fonds d'urgence",
+      targetAmount: 1500,
+      currentAmount: 300,
+      contributionAmount: 300,
+      frequency: "monthly",
+      nextDate: "2026-04-09",
+    },
+  ],
   transactions: [],
 };
 
@@ -971,33 +1001,49 @@ function createId() {
 }
 
 function createDemoState() {
-  const today = startOfDay(new Date());
   return {
     household: {
-      householdName: "Budget duo",
-      partnerOne: "Alex",
-      partnerTwo: "Camille",
+      householdName: "Budget Simon",
+      partnerOne: "Simon",
+      partnerTwo: "Ma conjointe",
       currency: "CAD",
-      currentBalance: 6420,
+      currentBalance: 998,
       projectionMonths: 6,
-      safetyBuffer: 4000,
+      safetyBuffer: 1500,
     },
     paychecks: [
-      { id: createId(), owner: "Alex", label: "Paie emploi principal", amount: 2150, frequency: "biweekly", nextDate: formatInputDate(addDays(today, 3)) },
-      { id: createId(), owner: "Camille", label: "Paie clinique", amount: 1780, frequency: "biweekly", nextDate: formatInputDate(addDays(today, 10)) },
+      {
+        id: createId(),
+        owner: "Simon",
+        label: "Paie ABB",
+        amount: 1988,
+        frequency: "biweekly",
+        nextDate: "2026-03-25",
+      },
     ],
     bills: [
-      { id: createId(), owner: "Budget duo", label: "Loyer", category: "Logement", amount: 1890, frequency: "monthly", nextDate: formatInputDate(addDays(today, 6)) },
-      { id: createId(), owner: "Budget duo", label: "Epicerie budgetee", category: "Vie courante", amount: 260, frequency: "weekly", nextDate: formatInputDate(addDays(today, 2)) },
-      { id: createId(), owner: "Alex", label: "Auto", category: "Transport", amount: 410, frequency: "monthly", nextDate: formatInputDate(addDays(today, 12)) },
+      {
+        id: createId(),
+        owner: "Simon",
+        label: "MNP",
+        category: "Finances",
+        amount: 400,
+        frequency: "biweekly",
+        nextDate: "2026-03-26",
+      },
     ],
     savingsGoals: [
-      { id: createId(), owner: "Budget duo", label: "Fonds d'urgence", targetAmount: 12000, currentAmount: 4800, contributionAmount: 350, frequency: "biweekly", nextDate: formatInputDate(addDays(today, 5)) },
-      { id: createId(), owner: "Camille", label: "Voyage ete", targetAmount: 3500, currentAmount: 1200, contributionAmount: 180, frequency: "monthly", nextDate: formatInputDate(addDays(today, 9)) },
+      {
+        id: createId(),
+        owner: "Simon",
+        label: "Fonds d'urgence",
+        targetAmount: 1500,
+        currentAmount: 300,
+        contributionAmount: 300,
+        frequency: "monthly",
+        nextDate: "2026-04-09",
+      },
     ],
-    transactions: [
-      { id: createId(), owner: "Budget duo", date: formatInputDate(addDays(today, 7)), type: "expense", label: "Entretien voiture", amount: 320, notes: "Garage local" },
-      { id: createId(), owner: "Alex", date: formatInputDate(addDays(today, 15)), type: "income", label: "Remboursement assurance", amount: 180, notes: "" },
-    ],
+    transactions: [],
   };
 }
