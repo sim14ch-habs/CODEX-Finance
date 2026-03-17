@@ -1,4 +1,4 @@
-const STORAGE_KEY = "budget-duo-v1";
+const STORAGE_KEY = "budget-duo-v2";
 
 const DEFAULT_STATE = {
   household: {
