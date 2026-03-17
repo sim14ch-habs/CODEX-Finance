@@ -336,6 +336,115 @@ textarea {
   padding: 0 28px 28px;
 }
 
+.cloud-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.2fr);
+  gap: 18px;
+  padding: 0 28px 28px;
+}
+
+.cloud-card,
+.cloud-box {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.cloud-card {
+  padding: 22px;
+}
+
+.cloud-card strong {
+  display: block;
+  margin-top: 14px;
+  font-size: 1.8rem;
+  font-family: var(--font-display);
+}
+
+.cloud-card p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.cloud-footnote {
+  font-size: 0.92rem;
+}
+
+.cloud-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.cloud-box {
+  padding: 20px;
+}
+
+.cloud-box h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+}
+
+.cloud-box p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.cloud-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(19, 35, 29, 0.08);
+  color: var(--text);
+}
+
+.cloud-badge.online {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.cloud-badge.syncing {
+  background: rgba(217, 109, 48, 0.14);
+  color: var(--accent);
+}
+
+.cloud-badge.error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.cloud-inline-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.cloud-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+  margin-bottom: 18px;
+}
+
+.cloud-detail-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.cloud-detail-grid strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.05rem;
+}
+
 .chart-card,
 .monthly-card {
   padding: 18px;
@@ -549,6 +658,7 @@ svg {
 
 @media (max-width: 1180px) {
   .hero,
+  .cloud-layout,
   .projection-layout,
   .cards-grid,
   .stats-grid,
@@ -569,6 +679,7 @@ svg {
 
   .hero,
   .section-head,
+  .cloud-layout,
   .grid-form,
   .stack-form,
   .projection-layout,
@@ -591,6 +702,10 @@ svg {
 
   .grid-form,
   .stack-form {
+    grid-template-columns: 1fr;
+  }
+
+  .cloud-detail-grid {
     grid-template-columns: 1fr;
   }
 

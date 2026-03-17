@@ -4,6 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Budget Duo</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta
       name="description"
       content="Suivi de budget de couple avec paies recurrentes, factures, epargne et projection du solde."
@@ -14,13 +17,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260317-2">
+    <link rel="stylesheet" href="styles.css?v=20260317-4">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
+          <p class="eyebrow">Build 2026-03-17 / cloud-ready</p>
           <h1>Suivez vos finances a deux et voyez ou va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'epargne et vos
@@ -64,6 +68,96 @@
       </header>
 
       <main class="layout">
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Cloud</p>
+              <h2>Synchronisation en ligne</h2>
+            </div>
+            <p id="cloudSummaryText">
+              Activez Supabase pour partager le budget entre vos appareils en temps reel.
+            </p>
+          </div>
+          <div class="cloud-layout">
+            <article class="cloud-card">
+              <span id="cloudModeBadge" class="cloud-badge">Mode local</span>
+              <strong id="cloudHeadline">Vos donnees restent sur cet appareil.</strong>
+              <p id="cloudDescription">
+                Ajoutez la configuration Supabase pour debloquer la connexion et la synchro en ligne.
+              </p>
+              <p id="cloudFootnote" class="cloud-footnote">
+                Tant que le cloud n'est pas configure, le site continue de fonctionner en local.
+              </p>
+            </article>
+
+            <div class="cloud-stack">
+              <section id="cloudConfigBox" class="cloud-box">
+                <h3>Configuration requise</h3>
+                <p>
+                  Remplissez <code>supabase-config.js</code> puis republiez le site pour activer la
+                  connexion en ligne.
+                </p>
+              </section>
+
+              <form id="cloudAuthForm" class="cloud-box" hidden>
+                <h3>Connexion par email</h3>
+                <p>Entrez votre email. Supabase vous enverra un lien magique de connexion.</p>
+                <label>
+                  Email
+                  <input id="cloudEmailInput" name="email" type="email" placeholder="vous@exemple.com" required>
+                </label>
+                <div class="form-actions">
+                  <button class="button primary" type="submit">Envoyer le lien</button>
+                </div>
+              </form>
+
+              <section id="cloudHouseholdBox" class="cloud-box" hidden>
+                <h3>Creer ou rejoindre un foyer</h3>
+                <p>
+                  La premiere personne cree le foyer cloud. L'autre entre ensuite le code
+                  d'invitation.
+                </p>
+                <form id="cloudCreateForm" class="cloud-inline-form">
+                  <label>
+                    Nom du foyer
+                    <input id="cloudHouseholdNameInput" name="householdName" type="text" placeholder="Budget Simon">
+                  </label>
+                  <button class="button primary" type="submit">Creer le foyer cloud</button>
+                </form>
+                <form id="cloudJoinForm" class="cloud-inline-form">
+                  <label>
+                    Code d'invitation
+                    <input id="cloudInviteInput" name="inviteCode" type="text" placeholder="ex: a1b2c3d4" required>
+                  </label>
+                  <button class="button secondary" type="submit">Rejoindre le foyer</button>
+                </form>
+              </section>
+
+              <section id="cloudConnectedBox" class="cloud-box" hidden>
+                <h3>Foyer connecte</h3>
+                <p>
+                  Connecte en tant que <strong id="cloudUserEmail">-</strong>
+                </p>
+                <div class="cloud-detail-grid">
+                  <div>
+                    <span>Foyer</span>
+                    <strong id="cloudHouseholdName">-</strong>
+                  </div>
+                  <div>
+                    <span>Code d'invitation</span>
+                    <strong id="cloudInviteCode">-</strong>
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button id="cloudPullBtn" class="button ghost" type="button">Recharger depuis le cloud</button>
+                  <button id="cloudPushBtn" class="button secondary" type="button">Envoyer mon budget local</button>
+                  <button id="cloudSignOutBtn" class="button ghost" type="button">Se deconnecter</button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+
         <section class="panel">
           <div class="section-head">
             <div>
@@ -448,6 +542,8 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260317-2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js?v=20260317-1"></script>
+    <script src="app.js?v=20260317-4"></script>
   </body>
 </html>

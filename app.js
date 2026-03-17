@@ -58,6 +58,24 @@ const TYPE_LABELS = {
   saving: "Epargne",
 };
 
+const CLOUD_SYNC_DELAY_MS = 500;
+
+const cloudState = {
+  config: null,
+  client: null,
+  user: null,
+  household: null,
+  lastSerializedBudget: "",
+  syncTimer: null,
+  syncInFlight: false,
+  channel: null,
+  channelHouseholdId: null,
+  status: "local",
+  message: "Vos donnees restent sur cet appareil.",
+  detail: "Ajoutez la configuration Supabase pour activer la synchro.",
+  lastSyncAt: "",
+};
+
 const $ = (id) => document.getElementById(id);
 function cloneDefaults() {
   return JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -72,6 +90,7 @@ let state = loadState();
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
   renderAll();
+  void initCloud();
 });
 
 function loadState() {
@@ -98,8 +117,11 @@ function sanitizeState(input) {
   };
 }
 
-function persistState() {
+function persistState(options = {}) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (!options.skipCloud) {
+    scheduleCloudSave();
+  }
 }
 
 function bindEvents() {
@@ -141,6 +163,19 @@ function bindEvents() {
   $("importBtn").addEventListener("click", () => $("importInput").click());
   $("importInput").addEventListener("change", importState);
   document.addEventListener("click", handleTableActions);
+
+  $("cloudAuthForm").addEventListener("submit", handleCloudAuthSubmit);
+  $("cloudCreateForm").addEventListener("submit", handleCreateHouseholdSubmit);
+  $("cloudJoinForm").addEventListener("submit", handleJoinHouseholdSubmit);
+  $("cloudPullBtn").addEventListener("click", () => {
+    void loadBudgetFromCloud();
+  });
+  $("cloudPushBtn").addEventListener("click", () => {
+    void saveBudgetToCloud(true);
+  });
+  $("cloudSignOutBtn").addEventListener("click", () => {
+    void signOutFromCloud();
+  });
 }
 
 function saveHousehold(event) {
@@ -283,10 +318,504 @@ function readOwner(formData) {
   return textValue(formData.get("owner")) || state.household.partnerOne || "Moi";
 }
 
+function getCloudConfig() {
+  const rawConfig = window.BUDGET_DUO_SUPABASE || {};
+  const url = textValue(rawConfig.url);
+  const anonKey = textValue(rawConfig.anonKey);
+  const redirectUrl = textValue(rawConfig.redirectUrl) || `${window.location.origin}${window.location.pathname}`;
+
+  if (!url || !anonKey || !window.supabase || typeof window.supabase.createClient !== "function") {
+    return null;
+  }
+
+  return { url, anonKey, redirectUrl };
+}
+
+function setCloudStatus(status, message, detail) {
+  cloudState.status = status;
+  cloudState.message = message;
+  cloudState.detail = detail;
+}
+
+async function initCloud() {
+  cloudState.config = getCloudConfig();
+  if (!cloudState.config) {
+    setCloudStatus(
+      "local",
+      "Vos donnees restent sur cet appareil.",
+      "Ajoutez la configuration Supabase pour activer la synchro."
+    );
+    renderAll();
+    return;
+  }
+
+  try {
+    cloudState.client = window.supabase.createClient(cloudState.config.url, cloudState.config.anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    });
+
+    setCloudStatus(
+      "auth",
+      "Connexion cloud disponible.",
+      "Connectez-vous pour partager le budget avec votre conjointe."
+    );
+    renderAll();
+
+    const {
+      data: { session },
+      error,
+    } = await cloudState.client.auth.getSession();
+
+    if (error) {
+      throw error;
+    }
+
+    cloudState.user = session ? session.user : null;
+    await refreshCloudContext();
+
+    cloudState.client.auth.onAuthStateChange((_event, sessionUpdate) => {
+      window.setTimeout(() => {
+        cloudState.user = sessionUpdate ? sessionUpdate.user : null;
+        void refreshCloudContext();
+      }, 0);
+    });
+  } catch (error) {
+    console.error("Init cloud impossible:", error);
+    setCloudStatus(
+      "error",
+      "Le mode cloud n'a pas pu demarrer.",
+      "Verifiez la configuration Supabase et rechargez la page."
+    );
+    renderAll();
+  }
+}
+
+async function refreshCloudContext() {
+  if (!cloudState.client || !cloudState.config) {
+    renderAll();
+    return;
+  }
+
+  if (!cloudState.user) {
+    cloudState.household = null;
+    cloudState.lastSerializedBudget = "";
+    cloudState.lastSyncAt = "";
+    await closeCloudSubscription();
+    setCloudStatus(
+      "auth",
+      "Connectez-vous pour partager votre budget.",
+      "Un lien magique sera envoye par email."
+    );
+    renderAll();
+    return;
+  }
+
+  try {
+    const household = await fetchMyHousehold();
+    cloudState.household = household;
+
+    if (!household) {
+      cloudState.lastSerializedBudget = "";
+      cloudState.lastSyncAt = "";
+      await closeCloudSubscription();
+      setCloudStatus(
+        "auth",
+        `Connecte comme ${cloudState.user.email || "utilisateur"}.`,
+        "Creez votre foyer cloud ou rejoignez celui de votre conjointe avec le code d'invitation."
+      );
+      renderAll();
+      return;
+    }
+
+    setCloudStatus(
+      "syncing",
+      `Foyer ${household.household_name} connecte.`,
+      "Lecture des donnees cloud..."
+    );
+    renderAll();
+    await subscribeToBudgetChanges(household.household_id);
+    await loadBudgetFromCloud();
+  } catch (error) {
+    console.error("Lecture cloud impossible:", error);
+    setCloudStatus(
+      "error",
+      "Impossible de lire votre foyer cloud.",
+      error.message || "Verifiez les policies et les fonctions SQL Supabase."
+    );
+    renderAll();
+  }
+}
+
+async function fetchMyHousehold() {
+  const { data, error } = await cloudState.client.rpc("get_my_household");
+  if (error) {
+    throw error;
+  }
+
+  if (Array.isArray(data)) {
+    return data[0] || null;
+  }
+
+  return data || null;
+}
+
+async function handleCloudAuthSubmit(event) {
+  event.preventDefault();
+  if (!cloudState.client || !cloudState.config) {
+    return;
+  }
+
+  const email = textValue(new FormData(event.currentTarget).get("email"));
+  if (!email) {
+    window.alert("Ajoutez votre email pour recevoir le lien magique.");
+    return;
+  }
+
+  setCloudStatus("syncing", "Envoi du lien magique...", "Verifiez ensuite votre boite email.");
+  renderAll();
+
+  const { error } = await cloudState.client.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: cloudState.config.redirectUrl,
+    },
+  });
+
+  if (error) {
+    console.error("Connexion email impossible:", error);
+    setCloudStatus("error", "Le lien magique n'a pas pu etre envoye.", error.message || "");
+    renderAll();
+    return;
+  }
+
+  setCloudStatus(
+    "auth",
+    "Lien magique envoye.",
+    `Ouvrez l'email envoye a ${email} sur votre appareil pour terminer la connexion.`
+  );
+  renderAll();
+}
+
+async function handleCreateHouseholdSubmit(event) {
+  event.preventDefault();
+  if (!cloudState.client || !cloudState.user) {
+    return;
+  }
+
+  const formData = new FormData(event.currentTarget);
+  const householdName = textValue(formData.get("householdName")) || state.household.householdName || "Budget du foyer";
+
+  setCloudStatus("syncing", "Creation du foyer cloud...", "Import du budget local actuel.");
+  renderAll();
+
+  const { error } = await cloudState.client.rpc("create_household", {
+    initial_name: householdName,
+    initial_budget_state: state,
+  });
+
+  if (error) {
+    console.error("Creation du foyer impossible:", error);
+    setCloudStatus("error", "Le foyer cloud n'a pas pu etre cree.", error.message || "");
+    renderAll();
+    return;
+  }
+
+  await refreshCloudContext();
+}
+
+async function handleJoinHouseholdSubmit(event) {
+  event.preventDefault();
+  if (!cloudState.client || !cloudState.user) {
+    return;
+  }
+
+  const inviteCode = textValue(new FormData(event.currentTarget).get("inviteCode")).toLowerCase();
+  if (!inviteCode) {
+    window.alert("Ajoutez le code d'invitation recu.");
+    return;
+  }
+
+  setCloudStatus("syncing", "Connexion au foyer cloud...", "Import des donnees partagees en cours.");
+  renderAll();
+
+  const { error } = await cloudState.client.rpc("join_household", {
+    invite_code_input: inviteCode,
+  });
+
+  if (error) {
+    console.error("Rejoindre le foyer impossible:", error);
+    setCloudStatus("error", "Impossible de rejoindre ce foyer.", error.message || "");
+    renderAll();
+    return;
+  }
+
+  await refreshCloudContext();
+}
+
+async function signOutFromCloud() {
+  if (!cloudState.client) {
+    return;
+  }
+
+  await cloudState.client.auth.signOut();
+  cloudState.user = null;
+  cloudState.household = null;
+  cloudState.lastSerializedBudget = "";
+  cloudState.lastSyncAt = "";
+  await closeCloudSubscription();
+  setCloudStatus(
+    "auth",
+    "Connexion cloud terminee.",
+    "Vos donnees locales restent disponibles sur cet appareil."
+  );
+  renderAll();
+}
+
+async function loadBudgetFromCloud() {
+  if (!cloudState.client || !cloudState.household) {
+    return;
+  }
+
+  const { data, error } = await cloudState.client
+    .from("household_budget_state")
+    .select("budget_state, updated_at")
+    .eq("household_id", cloudState.household.household_id)
+    .limit(1);
+
+  if (error) {
+    console.error("Chargement budget cloud impossible:", error);
+    setCloudStatus("error", "Impossible de lire le budget cloud.", error.message || "");
+    renderAll();
+    return;
+  }
+
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row || !row.budget_state) {
+    await saveBudgetToCloud(true);
+    return;
+  }
+
+  applyRemoteBudget(row.budget_state, row.updated_at);
+}
+
+async function subscribeToBudgetChanges(householdId) {
+  if (!cloudState.client || !householdId) {
+    return;
+  }
+
+  if (cloudState.channel && cloudState.channelHouseholdId === householdId) {
+    return;
+  }
+
+  await closeCloudSubscription();
+
+  cloudState.channel = cloudState.client
+    .channel(`budget-sync-${householdId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "household_budget_state",
+        filter: `household_id=eq.${householdId}`,
+      },
+      (payload) => {
+        const nextRecord = payload.new || payload.record;
+        if (!nextRecord || !nextRecord.budget_state) {
+          return;
+        }
+
+        const nextBudget = sanitizeState(nextRecord.budget_state);
+        const nextSerialized = JSON.stringify(nextBudget);
+        cloudState.lastSyncAt = nextRecord.updated_at || new Date().toISOString();
+
+        if (nextSerialized === cloudState.lastSerializedBudget) {
+          renderAll();
+          return;
+        }
+
+        state = nextBudget;
+        cloudState.lastSerializedBudget = nextSerialized;
+        persistState({ skipCloud: true });
+        setCloudStatus(
+          "connected",
+          `Foyer ${cloudState.household.household_name} synchronise.`,
+          "Une mise a jour distante vient d'etre appliquee."
+        );
+        renderAll();
+      }
+    )
+    .subscribe();
+
+  cloudState.channelHouseholdId = householdId;
+}
+
+async function closeCloudSubscription() {
+  if (!cloudState.client || !cloudState.channel) {
+    cloudState.channel = null;
+    cloudState.channelHouseholdId = null;
+    return;
+  }
+
+  await cloudState.client.removeChannel(cloudState.channel);
+  cloudState.channel = null;
+  cloudState.channelHouseholdId = null;
+}
+
+function scheduleCloudSave() {
+  if (!cloudState.client || !cloudState.user || !cloudState.household) {
+    return;
+  }
+
+  if (cloudState.syncTimer) {
+    window.clearTimeout(cloudState.syncTimer);
+  }
+
+  cloudState.syncTimer = window.setTimeout(() => {
+    void saveBudgetToCloud(false);
+  }, CLOUD_SYNC_DELAY_MS);
+}
+
+async function saveBudgetToCloud(forceSync) {
+  if (!cloudState.client || !cloudState.user || !cloudState.household || cloudState.syncInFlight) {
+    return;
+  }
+
+  if (cloudState.syncTimer) {
+    window.clearTimeout(cloudState.syncTimer);
+    cloudState.syncTimer = null;
+  }
+
+  const serialized = JSON.stringify(state);
+  if (!forceSync && serialized === cloudState.lastSerializedBudget) {
+    return;
+  }
+
+  cloudState.syncInFlight = true;
+  setCloudStatus(
+    "syncing",
+    `Synchronisation du foyer ${cloudState.household.household_name}...`,
+    "Envoi des changements vers le cloud."
+  );
+  renderAll();
+
+  const { data, error } = await cloudState.client
+    .from("household_budget_state")
+    .upsert({
+      household_id: cloudState.household.household_id,
+      budget_state: state,
+      updated_at: new Date().toISOString(),
+      updated_by: cloudState.user.id,
+    })
+    .select("budget_state, updated_at")
+    .single();
+
+  cloudState.syncInFlight = false;
+
+  if (error) {
+    console.error("Sauvegarde cloud impossible:", error);
+    setCloudStatus("error", "La sauvegarde cloud a echoue.", error.message || "");
+    renderAll();
+    return;
+  }
+
+  cloudState.lastSerializedBudget = serialized;
+  cloudState.lastSyncAt = data.updated_at || new Date().toISOString();
+  setCloudStatus(
+    "connected",
+    `Foyer ${cloudState.household.household_name} synchronise.`,
+    "Les changements sont maintenant partages avec les autres appareils connectes."
+  );
+  renderAll();
+}
+
+function applyRemoteBudget(nextBudget, updatedAt) {
+  state = sanitizeState(nextBudget);
+  cloudState.lastSerializedBudget = JSON.stringify(state);
+  cloudState.lastSyncAt = updatedAt || new Date().toISOString();
+  persistState({ skipCloud: true });
+  setCloudStatus(
+    "connected",
+    `Foyer ${cloudState.household.household_name} synchronise.`,
+    "Le budget affiche provient du cloud partage."
+  );
+  renderAll();
+}
+
+function renderCloudPanel() {
+  const configured = Boolean(cloudState.config);
+  const connected = Boolean(cloudState.user);
+  const linkedHousehold = Boolean(cloudState.household);
+  const badge = $("cloudModeBadge");
+
+  badge.className = "cloud-badge";
+  if (cloudState.status === "connected") {
+    badge.classList.add("online");
+  } else if (cloudState.status === "syncing") {
+    badge.classList.add("syncing");
+  } else if (cloudState.status === "error") {
+    badge.classList.add("error");
+  }
+
+  const badgeLabels = {
+    local: "Mode local",
+    auth: "Cloud pret",
+    syncing: "Synchronisation",
+    connected: "Cloud actif",
+    error: "Attention",
+  };
+
+  badge.textContent = badgeLabels[cloudState.status] || "Mode local";
+  $("cloudHeadline").textContent = cloudState.message;
+  $("cloudDescription").textContent = cloudState.detail;
+  $("cloudSummaryText").textContent = configured
+    ? "Le budget peut etre partage et synchronise entre vos appareils."
+    : "Activez Supabase pour partager le budget entre vos appareils en temps reel.";
+  $("cloudFootnote").textContent = cloudState.lastSyncAt
+    ? `Derniere synchro: ${formatCloudDateTime(cloudState.lastSyncAt)}`
+    : "Le budget local reste disponible meme sans cloud.";
+
+  $("cloudConfigBox").hidden = configured;
+  $("cloudAuthForm").hidden = !configured || connected;
+  $("cloudHouseholdBox").hidden = !configured || !connected || linkedHousehold;
+  $("cloudConnectedBox").hidden = !configured || !connected || !linkedHousehold;
+
+  if ($("cloudHouseholdNameInput") && !$("cloudHouseholdNameInput").value) {
+    $("cloudHouseholdNameInput").value = state.household.householdName || "Budget du foyer";
+  }
+
+  if (configured && connected) {
+    $("cloudUserEmail").textContent = cloudState.user.email || "Connecte";
+  }
+
+  if (configured && linkedHousehold) {
+    $("cloudHouseholdName").textContent = cloudState.household.household_name;
+    $("cloudInviteCode").textContent = cloudState.household.invite_code;
+  }
+}
+
+function formatCloudDateTime(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "-"
+    : date.toLocaleString("fr-CA", {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+}
+
 function renderAll() {
   populateHouseholdForm();
   renderOwnerSelects();
   seedFormDefaults();
+  renderCloudPanel();
   renderStats();
   renderProjection();
   renderContributors();
