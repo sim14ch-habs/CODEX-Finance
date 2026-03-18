@@ -34,6 +34,7 @@ const DEFAULT_STATE = {
   savingsGoals: [
     {
       id: "saving_simon_urgence",
+      scope: "personal",
       owner: "Simon",
       label: "Fonds d'urgence",
       targetAmount: 1500,
@@ -108,11 +109,14 @@ function loadState() {
 }
 
 function sanitizeState(input) {
+  const household = { ...cloneDefaults().household, ...(input.household || {}) };
   return {
-    household: { ...cloneDefaults().household, ...(input.household || {}) },
+    household,
     paychecks: Array.isArray(input.paychecks) ? input.paychecks : [],
     bills: Array.isArray(input.bills) ? input.bills : [],
-    savingsGoals: Array.isArray(input.savingsGoals) ? input.savingsGoals : [],
+    savingsGoals: Array.isArray(input.savingsGoals)
+      ? input.savingsGoals.map((item) => sanitizeSavingsGoal(item, household))
+      : [],
     transactions: Array.isArray(input.transactions) ? input.transactions : [],
   };
 }
@@ -176,11 +180,15 @@ function bindEvents() {
   $("cloudSignOutBtn").addEventListener("click", () => {
     void signOutFromCloud();
   });
+  $("savingsForm").elements.scope.addEventListener("change", updateSavingsFormOwnership);
 }
 
 function saveHousehold(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
+  const previousPartnerOne = state.household.partnerOne || "Moi";
+  const previousPartnerTwo = state.household.partnerTwo || "Ma conjointe";
+  const previousSharedOwner = getSharedOwnerValue();
   state.household = {
     householdName: textValue(formData.get("householdName")) || "Budget du foyer",
     partnerOne: textValue(formData.get("partnerOne")) || "Moi",
@@ -190,6 +198,31 @@ function saveHousehold(event) {
     projectionMonths: parseInt(formData.get("projectionMonths"), 10) || 6,
     safetyBuffer: parseAmount(formData.get("safetyBuffer")),
   };
+  const nextPartnerOne = state.household.partnerOne || "Moi";
+  const nextPartnerTwo = state.household.partnerTwo || "Ma conjointe";
+  const nextSharedOwner = getSharedOwnerValue();
+  const renameOwner = (owner) => {
+    if (owner === previousPartnerOne) {
+      return nextPartnerOne;
+    }
+    if (owner === previousPartnerTwo) {
+      return nextPartnerTwo;
+    }
+    if (owner === previousSharedOwner) {
+      return nextSharedOwner;
+    }
+    return owner;
+  };
+
+  ["paychecks", "bills", "transactions"].forEach((collection) => {
+    state[collection] = state[collection].map((item) => ({ ...item, owner: renameOwner(item.owner) }));
+  });
+  state.savingsGoals = state.savingsGoals.map((item) => {
+    if (item.scope === "shared" || item.owner === previousSharedOwner) {
+      return { ...item, scope: "shared", owner: nextSharedOwner };
+    }
+    return { ...item, owner: renameOwner(item.owner) };
+  });
   persistState();
   renderAll();
 }
@@ -223,6 +256,7 @@ function resetForm(formId) {
     form.elements.id.value = "";
   }
   seedFormDefaults();
+  updateSavingsFormOwnership();
 }
 
 function readPaycheckForm(formData) {
@@ -270,6 +304,7 @@ function readSavingsForm(formData) {
   const label = textValue(formData.get("label"));
   const contributionAmount = parseAmount(formData.get("contributionAmount"));
   const nextDate = textValue(formData.get("nextDate"));
+  const scope = readSavingsScope(formData);
 
   if (!label) {
     window.alert("Merci de donner un nom a votre objectif d'epargne.");
@@ -283,7 +318,8 @@ function readSavingsForm(formData) {
 
   return {
     id: textValue(formData.get("id")) || createId(),
-    owner: readOwner(formData),
+    scope,
+    owner: scope === "shared" ? getSharedOwnerValue() : readOwner(formData),
     label,
     targetAmount: parseAmount(formData.get("targetAmount")),
     currentAmount: parseAmount(formData.get("currentAmount")),
@@ -316,6 +352,10 @@ function readTransactionForm(formData) {
 
 function readOwner(formData) {
   return textValue(formData.get("owner")) || state.household.partnerOne || "Moi";
+}
+
+function readSavingsScope(formData) {
+  return textValue(formData.get("scope")) === "shared" ? "shared" : "personal";
 }
 
 function getCloudConfig() {
@@ -815,6 +855,7 @@ function renderAll() {
   populateHouseholdForm();
   renderOwnerSelects();
   seedFormDefaults();
+  updateSavingsFormOwnership();
   renderCloudPanel();
   renderStats();
   renderProjection();
@@ -834,16 +875,9 @@ function populateHouseholdForm() {
 }
 
 function renderOwnerSelects() {
-  const owners = getOwners();
-
   document.querySelectorAll(".owner-select").forEach((select) => {
     const previous = select.value;
-    select.innerHTML = owners
-      .map((owner) => `<option value="${escapeHtml(owner)}">${escapeHtml(owner)}</option>`)
-      .join("");
-    if (owners.includes(previous)) {
-      select.value = previous;
-    }
+    renderSelectOptions(select, getOwnerOptions(select.id === "savingsOwnerSelect" ? false : true), previous);
   });
 }
 
@@ -852,7 +886,7 @@ function seedFormDefaults() {
   const today = formatInputDate(new Date());
 
   document.querySelectorAll(".owner-select").forEach((select) => {
-    if (!select.value) {
+    if (!select.value && !select.disabled) {
       select.value = fallbackOwner;
     }
   });
@@ -870,6 +904,43 @@ function seedFormDefaults() {
   });
 
   $("projectionRangeChip").textContent = `${state.household.projectionMonths || 6} mois`;
+}
+
+function updateSavingsFormOwnership() {
+  const form = $("savingsForm");
+  if (!form) {
+    return;
+  }
+
+  const scopeField = form.elements.scope;
+  const ownerField = form.elements.owner;
+  const hint = $("savingsScopeHint");
+  const scope = scopeField && scopeField.value === "shared" ? "shared" : "personal";
+  const previousOwner = ownerField ? ownerField.value : "";
+
+  if (!ownerField) {
+    return;
+  }
+
+  if (scope === "shared") {
+    renderSelectOptions(ownerField, getOwnerOptions(true).filter((option) => option.value === getSharedOwnerValue()));
+    ownerField.disabled = true;
+    if (hint) {
+      hint.textContent = "Cette epargne sera visible comme un compte commun, distinct de vos comptes personnels.";
+    }
+    return;
+  }
+
+  renderSelectOptions(ownerField, getOwnerOptions(false), previousOwner);
+  ownerField.disabled = false;
+
+  if (!ownerField.value) {
+    ownerField.value = state.household.partnerOne || "Moi";
+  }
+
+  if (hint) {
+    hint.textContent = "Choisissez la personne qui possede cette epargne. Les objectifs communs utilisent le type Commune.";
+  }
 }
 
 function renderStats() {
@@ -896,7 +967,7 @@ function renderStats() {
     {
       label: "Epargne mensuelle",
       value: formatCurrency(metrics.monthlySavings),
-      note: "Contributions planifiees.",
+      note: `Perso ${formatCurrency(metrics.monthlyPersonalSavings)} • Commune ${formatCurrency(metrics.monthlySharedSavings)}.`,
       tone: "",
     },
     {
@@ -928,7 +999,7 @@ function renderStats() {
 function renderTables() {
   renderTable("paychecksTable", state.paychecks, 6, renderPaycheckRow);
   renderTable("billsTable", state.bills, 7, renderBillRow);
-  renderTable("savingsTable", state.savingsGoals, 6, renderSavingsRow);
+  renderTable("savingsTable", state.savingsGoals, 7, renderSavingsRow);
   renderTable("transactionsTable", state.transactions.slice().sort(sortByDateDesc), 6, renderTransactionRow);
 }
 
@@ -945,7 +1016,7 @@ function renderTable(targetId, rows, colSpan, renderer) {
 function renderPaycheckRow(item) {
   return `
     <tr>
-      <td>${escapeHtml(item.owner)}</td>
+      <td>${escapeHtml(formatOwnerLabel(item.owner))}</td>
       <td>${escapeHtml(item.label)}</td>
       <td>${escapeHtml(FREQUENCY_LABELS[item.frequency] || item.frequency)}</td>
       <td class="positive">${escapeHtml(formatCurrency(item.amount))}</td>
@@ -958,7 +1029,7 @@ function renderPaycheckRow(item) {
 function renderBillRow(item) {
   return `
     <tr>
-      <td>${escapeHtml(item.owner)}</td>
+      <td>${escapeHtml(formatOwnerLabel(item.owner))}</td>
       <td>${escapeHtml(item.label)}</td>
       <td>${escapeHtml(item.category || "-")}</td>
       <td>${escapeHtml(FREQUENCY_LABELS[item.frequency] || item.frequency)}</td>
@@ -976,10 +1047,13 @@ function renderSavingsRow(item) {
   const contributionLabel = item.contributionAmount
     ? `${formatCurrency(item.contributionAmount)} / ${FREQUENCY_LABELS[item.frequency] || item.frequency}`
     : "Aucune";
+  const scopeLabel = item.scope === "shared" ? "Commune" : "Personnelle";
+  const scopeClass = item.scope === "shared" ? "shared" : "personal";
 
   return `
     <tr>
-      <td>${escapeHtml(item.owner)}</td>
+      <td><span class="scope-pill ${escapeHtml(scopeClass)}">${escapeHtml(scopeLabel)}</span></td>
+      <td>${escapeHtml(formatOwnerLabel(item.owner))}</td>
       <td>${escapeHtml(item.label)}</td>
       <td>
         <div>${escapeHtml(formatCurrency(currentAmount))} / ${escapeHtml(formatCurrency(targetAmount))}</div>
@@ -997,7 +1071,7 @@ function renderTransactionRow(item) {
   return `
     <tr>
       <td>${escapeHtml(formatDate(item.date))}</td>
-      <td>${escapeHtml(item.owner)}</td>
+      <td>${escapeHtml(formatOwnerLabel(item.owner))}</td>
       <td>${escapeHtml(TYPE_LABELS[item.type] || item.type)}</td>
       <td>${escapeHtml(item.label)}</td>
       <td class="${amount >= 0 ? "positive" : "negative"}">${escapeHtml(formatSignedCurrency(amount))}</td>
@@ -1055,6 +1129,9 @@ function editItem(collection, id) {
       form.elements[key].value = value;
     }
   });
+  if (collection === "savingsGoals") {
+    updateSavingsFormOwnership();
+  }
   form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1101,7 +1178,7 @@ function renderProjection() {
             <li>
               <div>
                 <strong>${escapeHtml(event.label)}</strong>
-                <small>${escapeHtml(event.owner)} • ${escapeHtml(formatDate(event.date))}</small>
+                <small>${escapeHtml(formatOwnerLabel(event.owner))} • ${escapeHtml(formatDate(event.date))}</small>
               </div>
               <strong class="${event.delta >= 0 ? "positive" : "negative"}">${escapeHtml(formatSignedCurrency(event.delta))}</strong>
             </li>
@@ -1119,9 +1196,9 @@ function renderContributors() {
     .map(
       (card) => `
         <article class="contributor-card fade-in">
-          <span>${escapeHtml(card.owner)}</span>
+          <span>${escapeHtml(card.displayName)}</span>
           <strong class="${card.net >= 0 ? "positive" : "negative"}">${escapeHtml(formatCurrency(card.net))}</strong>
-          <p>Net mensuel estime.</p>
+          <p>${escapeHtml(card.note)}</p>
           <div class="badge-row">
             <span class="badge">Revenus ${escapeHtml(formatCurrency(card.income))}</span>
             <span class="badge">Factures ${escapeHtml(formatCurrency(card.bills))}</span>
@@ -1136,6 +1213,14 @@ function renderContributors() {
 function computeMetrics() {
   const monthlyIncome = sumBy(state.paychecks, (item) => monthlyAmount(item.amount, item.frequency));
   const monthlyBills = sumBy(state.bills, (item) => monthlyAmount(item.amount, item.frequency));
+  const monthlyPersonalSavings = sumBy(
+    state.savingsGoals.filter((item) => item.scope !== "shared"),
+    (item) => monthlyAmount(item.contributionAmount, item.frequency)
+  );
+  const monthlySharedSavings = sumBy(
+    state.savingsGoals.filter((item) => item.scope === "shared"),
+    (item) => monthlyAmount(item.contributionAmount, item.frequency)
+  );
   const monthlySavings = sumBy(state.savingsGoals, (item) =>
     monthlyAmount(item.contributionAmount, item.frequency)
   );
@@ -1144,6 +1229,8 @@ function computeMetrics() {
     monthlyIncome,
     monthlyBills,
     monthlySavings,
+    monthlyPersonalSavings,
+    monthlySharedSavings,
     monthlyNet: monthlyIncome - monthlyBills - monthlySavings,
   };
 }
@@ -1162,7 +1249,16 @@ function computeOwnerMetrics() {
       state.savingsGoals.filter((item) => item.owner === owner),
       (item) => monthlyAmount(item.contributionAmount, item.frequency)
     );
-    return { owner, income, bills, savings, net: income - bills - savings };
+    const shared = isSharedOwner(owner);
+    return {
+      owner,
+      displayName: formatOwnerLabel(owner),
+      income,
+      bills,
+      savings,
+      net: income - bills - savings,
+      note: shared ? "Vue du compte commun et des objectifs partages." : "Net mensuel estime.",
+    };
   });
 }
 
@@ -1514,12 +1610,70 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function sanitizeSavingsGoal(item, household) {
+  const sharedOwner = household.householdName || "Budget du foyer";
+  const owner = textValue(item.owner);
+  const scope = textValue(item.scope) === "shared" || owner === sharedOwner ? "shared" : "personal";
+
+  return {
+    id: textValue(item.id) || createId(),
+    scope,
+    owner: scope === "shared" ? sharedOwner : owner || household.partnerOne || "Moi",
+    label: textValue(item.label),
+    targetAmount: parseAmount(item.targetAmount),
+    currentAmount: parseAmount(item.currentAmount),
+    contributionAmount: parseAmount(item.contributionAmount),
+    frequency: textValue(item.frequency) || "monthly",
+    nextDate: textValue(item.nextDate),
+  };
+}
+
+function getSharedOwnerValue() {
+  return state.household.householdName || "Budget du foyer";
+}
+
+function isSharedOwner(owner) {
+  return textValue(owner) === getSharedOwnerValue();
+}
+
+function formatOwnerLabel(owner) {
+  return isSharedOwner(owner) ? "Compte commun" : textValue(owner) || "-";
+}
+
+function getPersonOwners() {
+  return [state.household.partnerOne || "Moi", state.household.partnerTwo || "Ma conjointe"].filter(
+    (value, index, array) => value && array.indexOf(value) === index
+  );
+}
+
+function getOwnerOptions(includeShared) {
+  const options = getPersonOwners().map((owner) => ({ value: owner, label: owner }));
+  if (includeShared) {
+    options.push({ value: getSharedOwnerValue(), label: "Compte commun" });
+  }
+  return options;
+}
+
+function renderSelectOptions(select, options, preferredValue) {
+  if (!select) {
+    return;
+  }
+
+  select.innerHTML = options
+    .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+    .join("");
+
+  const fallbackValue = options[0] ? options[0].value : "";
+  const nextValue = options.some((option) => option.value === preferredValue) ? preferredValue : fallbackValue;
+  if (nextValue) {
+    select.value = nextValue;
+  }
+}
+
 function getOwners() {
-  return [
-    state.household.partnerOne || "Moi",
-    state.household.partnerTwo || "Ma conjointe",
-    state.household.householdName || "Budget du foyer",
-  ];
+  return [...getPersonOwners(), getSharedOwnerValue()].filter(
+    (value, index, array) => value && array.indexOf(value) === index
+  );
 }
 
 function sortByDateDesc(a, b) {
@@ -1569,6 +1723,7 @@ function createDemoState() {
     savingsGoals: [
       {
         id: createId(),
+        scope: "personal",
         owner: "Simon",
         label: "Fonds d'urgence",
         targetAmount: 1500,

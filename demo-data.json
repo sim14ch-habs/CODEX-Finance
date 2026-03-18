@@ -32,6 +32,7 @@
   "savingsGoals": [
     {
       "id": "saving_simon_urgence",
+      "scope": "personal",
       "owner": "Simon",
       "label": "Fonds d'urgence",
       "targetAmount": 1500,

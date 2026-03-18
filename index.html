@@ -17,14 +17,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260317-4">
+    <link rel="stylesheet" href="styles.css?v=20260318-1">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-17 / cloud-ready</p>
+          <p class="eyebrow">Build 2026-03-18 / shared-savings</p>
           <h1>Suivez vos finances a deux et voyez ou va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'epargne et vos
@@ -400,13 +400,20 @@
                 <p class="section-kicker">Epargne</p>
                 <h2>Objectifs et virements</h2>
               </div>
-              <p>Gardez une cible en vue et voyez le rythme de progression.</p>
+              <p>Choisissez si chaque objectif est personnel ou commun, sans melanger vos comptes.</p>
             </div>
             <form id="savingsForm" class="stack-form">
               <input name="id" type="hidden">
               <label>
-                Personne / budget
-                <select name="owner" class="owner-select"></select>
+                Type d'epargne
+                <select id="savingsScope" name="scope">
+                  <option value="personal">Personnelle</option>
+                  <option value="shared">Commune</option>
+                </select>
+              </label>
+              <label>
+                Titulaire
+                <select id="savingsOwnerSelect" name="owner" class="owner-select"></select>
               </label>
               <label>
                 Objectif
@@ -436,6 +443,9 @@
                 Prochaine date
                 <input name="nextDate" type="date">
               </label>
+              <p id="savingsScopeHint" class="helper-text form-helper">
+                Choisissez la personne qui possede cette epargne. Les objectifs communs utilisent le type Commune.
+              </p>
               <div class="form-actions">
                 <button class="button primary" type="submit">Ajouter / mettre a jour</button>
                 <button class="button ghost form-reset" data-form="savingsForm" type="button">Vider</button>
@@ -445,7 +455,8 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Personne</th>
+                    <th>Type</th>
+                    <th>Titulaire</th>
                     <th>Objectif</th>
                     <th>Progression</th>
                     <th>Contribution</th>
@@ -544,6 +555,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260317-1"></script>
-    <script src="app.js?v=20260317-4"></script>
+    <script src="app.js?v=20260318-1"></script>
   </body>
 </html>

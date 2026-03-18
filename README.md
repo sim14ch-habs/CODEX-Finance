@@ -8,6 +8,7 @@ Tableau de bord statique pour suivre un budget de couple, les factures, l'epargn
 - paies recurrentes
 - factures recurrentes
 - objectifs d'epargne
+- objectifs d'epargne personnels ou communs
 - mouvements ponctuels
 - projection du compte sur plusieurs mois
 - sauvegarde locale dans le navigateur
@@ -60,6 +61,7 @@ Le site peut maintenant passer en mode partage en ligne.
 - le site genere un code d'invitation
 - la seconde personne se connecte puis rejoint le foyer avec ce code
 - les changements du budget sont synchronises via Supabase Realtime
+- l'epargne peut rester personnelle ou etre basculee sur un compte commun distinct
 
 ### Etapes de configuration
 
