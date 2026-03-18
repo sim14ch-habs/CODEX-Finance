@@ -3027,11 +3027,18 @@ function drawProjectionChart(points, safetyBuffer) {
 
   const width = 760;
   const height = 340;
-  const padding = { top: 24, right: 24, bottom: 38, left: 64 };
   const balances = points.map((point) => point.balance);
   const minBalance = Math.min(...balances, safetyBuffer || 0);
   const maxBalance = Math.max(...balances, safetyBuffer || 0, 1);
   const span = maxBalance - minBalance || 1;
+  const yAxisValues = Array.from({ length: 5 }, (_, index) => maxBalance - (index / 4) * span);
+  const yAxisLabelWidth = Math.max(...yAxisValues.map((value) => formatCurrency(value).length)) * 8.1;
+  const padding = {
+    top: 24,
+    right: 24,
+    bottom: 38,
+    left: Math.max(88, Math.ceil(yAxisLabelWidth + 20)),
+  };
   const usableWidth = width - padding.left - padding.right;
   const usableHeight = height - padding.top - padding.bottom;
   const minDate = points[0].date.getTime();
@@ -3045,13 +3052,12 @@ function drawProjectionChart(points, safetyBuffer) {
     .join(" ");
   const area = `${path} L ${scaleX(getLast(points).date).toFixed(2)} ${height - padding.bottom} L ${scaleX(points[0].date).toFixed(2)} ${height - padding.bottom} Z`;
 
-  const grid = Array.from({ length: 5 }, (_, index) => {
+  const grid = yAxisValues.map((value, index) => {
     const ratio = index / 4;
     const y = padding.top + ratio * usableHeight;
-    const value = maxBalance - ratio * span;
     return `
       <line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="rgba(19,35,29,0.09)" stroke-width="1" />
-      <text x="${padding.left - 10}" y="${y + 4}" fill="#5c6e63" font-size="12" text-anchor="end">${escapeHtml(formatCurrency(value))}</text>
+      <text x="${padding.left - 14}" y="${y + 4}" fill="#5c6e63" font-size="12" text-anchor="end">${escapeHtml(formatCurrency(value))}</text>
     `;
   }).join("");
 
