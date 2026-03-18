@@ -12,19 +12,25 @@
     {
       "id": "account_partner_one",
       "owner": "Simon",
-      "kind": "personal",
+      "holder": "partnerOne",
+      "kind": "checking",
+      "status": "active",
       "balance": 998
     },
     {
       "id": "account_partner_two",
       "owner": "Geneviève",
-      "kind": "personal",
+      "holder": "partnerTwo",
+      "kind": "checking",
+      "status": "active",
       "balance": 0
     },
     {
       "id": "account_shared",
       "owner": "Budget Simon",
-      "kind": "shared",
+      "holder": "shared",
+      "kind": "checking",
+      "status": "active",
       "balance": 0
     }
   ],

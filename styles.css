@@ -79,6 +79,10 @@ textarea {
   color: var(--text);
   border-radius: 999px;
   padding: 10px 12px;
+  min-height: 46px;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
 }
 
 .mobile-tab.active {
@@ -1031,7 +1035,15 @@ svg {
 
 @media (max-width: 760px) {
   .mobile-section-nav {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    position: sticky;
+    top: 10px;
+    z-index: 30;
+    padding: 10px 8px 12px;
+    background: rgba(246, 239, 228, 0.88);
+    backdrop-filter: blur(14px);
+    border-radius: 22px;
   }
 
   .page-shell {

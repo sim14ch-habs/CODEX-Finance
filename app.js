@@ -5,6 +5,20 @@ const ACCOUNT_IDS = {
   partnerTwo: "account_partner_two",
   shared: "account_shared",
 };
+const ACCOUNT_HOLDERS = {
+  partnerOne: "partnerOne",
+  partnerTwo: "partnerTwo",
+  shared: "shared",
+};
+const ACCOUNT_KIND_LABELS = {
+  checking: "Courant",
+  savings: "Épargne",
+  other: "Autre",
+};
+const ACCOUNT_STATUS_LABELS = {
+  active: "Actif",
+  closed: "Fermé",
+};
 
 const DEFAULT_STATE = {
   household: {
@@ -20,19 +34,25 @@ const DEFAULT_STATE = {
     {
       id: ACCOUNT_IDS.partnerOne,
       owner: "Simon",
-      kind: "personal",
+      holder: ACCOUNT_HOLDERS.partnerOne,
+      kind: "checking",
+      status: "active",
       balance: 998,
     },
     {
       id: ACCOUNT_IDS.partnerTwo,
       owner: "Geneviève",
-      kind: "personal",
+      holder: ACCOUNT_HOLDERS.partnerTwo,
+      kind: "checking",
+      status: "active",
       balance: 0,
     },
     {
       id: ACCOUNT_IDS.shared,
       owner: "Budget Simon",
-      kind: "shared",
+      holder: ACCOUNT_HOLDERS.shared,
+      kind: "checking",
+      status: "active",
       balance: 0,
     },
   ],
@@ -242,27 +262,28 @@ function loadState() {
 
 function sanitizeState(input) {
   const household = { ...cloneDefaults().household, ...(input.household || {}) };
-  const accounts = sanitizeAccounts(input.accounts, household, household.currentBalance);
+  const referencedAccountSeeds = collectReferencedAccountSeeds(input, household);
+  const accounts = sanitizeAccounts(input.accounts, household, household.currentBalance, referencedAccountSeeds);
   return {
     household: {
       ...household,
-      currentBalance: sumBy(accounts, (account) => account.balance || 0),
+      currentBalance: getTotalCurrentBalance(accounts),
     },
     accounts,
     paychecks: Array.isArray(input.paychecks)
-      ? input.paychecks.map((item) => sanitizeOwnedItem(item, household))
+      ? input.paychecks.map((item) => sanitizeOwnedItem(item, household, accounts))
       : [],
     bills: Array.isArray(input.bills)
-      ? input.bills.map((item) => sanitizeOwnedItem(item, household))
+      ? input.bills.map((item) => sanitizeOwnedItem(item, household, accounts))
       : [],
     savingsGoals: Array.isArray(input.savingsGoals)
-      ? input.savingsGoals.map((item) => sanitizeSavingsGoal(item, household))
+      ? input.savingsGoals.map((item) => sanitizeSavingsGoal(item, household, accounts))
       : [],
     transactions: Array.isArray(input.transactions)
-      ? input.transactions.map((item) => sanitizeOwnedItem(item, household))
+      ? input.transactions.map((item) => sanitizeOwnedItem(item, household, accounts))
       : [],
     transfers: Array.isArray(input.transfers)
-      ? input.transfers.map((item) => sanitizeTransfer(item, household))
+      ? input.transfers.map((item) => sanitizeTransfer(item, household, accounts))
       : [],
   };
 }
@@ -276,6 +297,7 @@ function persistState(options = {}) {
 
 function bindEvents() {
   $("householdForm").addEventListener("submit", saveHousehold);
+  $("accountForm").addEventListener("submit", saveAccount);
   $("paycheckForm").addEventListener("submit", (event) =>
     upsertCollection(event, "paychecks", readPaycheckForm)
   );
@@ -360,68 +382,90 @@ function bindEvents() {
 function saveHousehold(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
-  const previousPartnerOne = state.household.partnerOne || "Moi";
-  const previousPartnerTwo = state.household.partnerTwo || "Geneviève";
-  const previousSharedOwner = getSharedOwnerValue();
+  const previousHousehold = { ...state.household };
+  const renameRules = [
+    {
+      id: ACCOUNT_IDS.partnerOne,
+      nextOwner: textValue(formData.get("partnerOne")) || "Moi",
+      holder: ACCOUNT_HOLDERS.partnerOne,
+      previousOwner: state.accounts.find((account) => account.id === ACCOUNT_IDS.partnerOne)?.owner || state.household.partnerOne || "Moi",
+    },
+    {
+      id: ACCOUNT_IDS.partnerTwo,
+      nextOwner: textValue(formData.get("partnerTwo")) || "Geneviève",
+      holder: ACCOUNT_HOLDERS.partnerTwo,
+      previousOwner:
+        state.accounts.find((account) => account.id === ACCOUNT_IDS.partnerTwo)?.owner || state.household.partnerTwo || "Geneviève",
+    },
+    {
+      id: ACCOUNT_IDS.shared,
+      nextOwner: textValue(formData.get("householdName")) || "Budget du foyer",
+      holder: ACCOUNT_HOLDERS.shared,
+      previousOwner:
+        state.accounts.find((account) => account.id === ACCOUNT_IDS.shared)?.owner ||
+        getSharedOwnerValueFromHousehold(state.household),
+    },
+  ];
   state.household = {
     householdName: textValue(formData.get("householdName")) || "Budget du foyer",
     partnerOne: textValue(formData.get("partnerOne")) || "Moi",
     partnerTwo: textValue(formData.get("partnerTwo")) || "Geneviève",
     currency: textValue(formData.get("currency")) || "CAD",
-    currentBalance: 0,
+    currentBalance: getTotalCurrentBalance(),
     projectionMonths: parseInt(formData.get("projectionMonths"), 10) || 6,
     safetyBuffer: parseAmount(formData.get("safetyBuffer")),
   };
-  const nextPartnerOne = state.household.partnerOne || "Moi";
-  const nextPartnerTwo = state.household.partnerTwo || "Geneviève";
-  const nextSharedOwner = getSharedOwnerValue();
-  const renameOwner = (owner) => {
-    if (owner === previousPartnerOne) {
-      return nextPartnerOne;
+  const ownerRenames = new Map();
+
+  state.accounts = state.accounts.map((account) => {
+    const rule = renameRules.find((entry) => entry.id === account.id);
+    if (!rule) {
+      return {
+        ...account,
+        holder: sanitizeAccountHolder(account.holder, state.household, account.id, account.kind, account.owner),
+      };
     }
-    if (owner === previousPartnerTwo) {
-      return nextPartnerTwo;
+
+    if (textValue(account.owner) === textValue(rule.previousOwner)) {
+      ownerRenames.set(textValue(rule.previousOwner), rule.nextOwner);
+      return {
+        ...account,
+        owner: rule.nextOwner,
+        holder: rule.holder,
+      };
     }
-    if (owner === previousSharedOwner) {
-      return nextSharedOwner;
-    }
-    return owner;
-  };
+
+    return {
+      ...account,
+      holder: rule.holder,
+    };
+  });
+
+  const renameOwner = (owner) => ownerRenames.get(textValue(owner)) || owner;
 
   ["paychecks", "bills", "transactions"].forEach((collection) => {
     state[collection] = state[collection].map((item) => ({ ...item, owner: renameOwner(item.owner) }));
   });
   state.savingsGoals = state.savingsGoals.map((item) => {
-    if (item.scope === "shared" || item.owner === previousSharedOwner) {
-      return { ...item, scope: "shared", owner: nextSharedOwner };
-    }
-    return { ...item, owner: renameOwner(item.owner) };
+    const nextOwner = renameOwner(item.owner);
+    const nextAccount = getAccountByOwner(nextOwner, state.accounts);
+    return {
+      ...item,
+      owner: nextOwner,
+      scope: isSharedHolder(nextAccount?.holder) || item.scope === "shared" ? "shared" : "personal",
+    };
   });
   state.transfers = state.transfers.map((item) => ({
     ...item,
     fromOwner: renameOwner(item.fromOwner),
     toOwner: renameOwner(item.toOwner),
   }));
-  state.accounts = [
-    {
-      id: ACCOUNT_IDS.partnerOne,
-      owner: nextPartnerOne,
-      kind: "personal",
-      balance: parseAmount(formData.get("partnerOneBalance")),
-    },
-    {
-      id: ACCOUNT_IDS.partnerTwo,
-      owner: nextPartnerTwo,
-      kind: "personal",
-      balance: parseAmount(formData.get("partnerTwoBalance")),
-    },
-    {
-      id: ACCOUNT_IDS.shared,
-      owner: nextSharedOwner,
-      kind: "shared",
-      balance: parseAmount(formData.get("sharedBalance")),
-    },
-  ];
+  state.accounts = sanitizeAccounts(
+    state.accounts,
+    state.household,
+    previousHousehold.currentBalance,
+    collectReferencedAccountSeeds(state, state.household)
+  );
   syncCurrentBalance();
   persistState();
   renderAll();
@@ -457,6 +501,68 @@ function resetForm(formId) {
   }
   seedFormDefaults();
   updateSavingsFormOwnership();
+}
+
+function saveAccount(event) {
+  event.preventDefault();
+  const account = readAccountForm(new FormData(event.currentTarget));
+  if (!account) {
+    return;
+  }
+
+  const index = state.accounts.findIndex((entry) => entry.id === account.id);
+  if (index >= 0) {
+    const previous = state.accounts[index];
+    state.accounts[index] = {
+      ...previous,
+      ...account,
+      status: previous.status || "active",
+    };
+  } else {
+    state.accounts.unshift(account);
+  }
+
+  state.accounts = sanitizeAccounts(
+    state.accounts,
+    state.household,
+    state.household.currentBalance,
+    collectReferencedAccountSeeds(state, state.household)
+  );
+  syncCurrentBalance();
+  persistState();
+  resetForm(event.currentTarget.id);
+  renderAll();
+}
+
+function readAccountForm(formData) {
+  const id = textValue(formData.get("id")) || createId();
+  const owner = textValue(formData.get("owner"));
+  const holder = sanitizeAccountHolder(textValue(formData.get("holder")) || ACCOUNT_HOLDERS.partnerOne, state.household, id);
+  const kind = sanitizeAccountKind(textValue(formData.get("kind")) || "checking");
+  const balance = parseAmount(formData.get("balance"));
+  const existing = state.accounts.find((account) => account.id === id);
+  const duplicate = state.accounts.find(
+    (account) => account.id !== id && textValue(account.owner).toLowerCase() === owner.toLowerCase()
+  );
+
+  if (!owner) {
+    window.alert("Ajoute un nom de compte pour pouvoir le retrouver partout dans le budget.");
+    return null;
+  }
+
+  if (duplicate) {
+    window.alert("Un autre compte porte déjà ce nom. Choisis un nom distinct.");
+    return null;
+  }
+
+  return {
+    id,
+    owner,
+    holder,
+    kind,
+    status: existing?.status || "active",
+    balance,
+  };
 }
 
 function readPaycheckForm(formData) {
@@ -503,7 +609,7 @@ function readBillForm(formData) {
 }
 
 function mergeStarterBills() {
-  const owner = state.household.partnerOne || "Simon";
+  const owner = getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || state.household.partnerOne || "Simon";
   const starterBills = cloneDefaults().bills.map((item) => ({ ...item, owner }));
   const existingKeys = new Set(state.bills.map((item) => buildOwnedLabelKey(item.owner, item.label)));
   const missingBills = starterBills.filter(
@@ -541,7 +647,7 @@ function readSavingsForm(formData) {
   return {
     id: textValue(formData.get("id")) || createId(),
     scope,
-    owner: scope === "shared" ? getSharedOwnerValue() : readOwner(formData),
+    owner: readOwner(formData, scope === "shared" ? ACCOUNT_HOLDERS.shared : "personal"),
     label,
     targetAmount: parseAmount(formData.get("targetAmount")),
     currentAmount: parseAmount(formData.get("currentAmount")),
@@ -601,8 +707,8 @@ function readTransferForm(formData) {
   };
 }
 
-function readOwner(formData) {
-  return textValue(formData.get("owner")) || state.household.partnerOne || "Moi";
+function readOwner(formData, fallbackHolder = ACCOUNT_HOLDERS.partnerOne) {
+  return readOwnerWithFallback(textValue(formData.get("owner")), fallbackHolder);
 }
 
 function readSavingsScope(formData) {
@@ -1171,6 +1277,7 @@ function restoreLocalBackup() {
 function renderAll() {
   populateHouseholdForm();
   renderBalanceLabels();
+  renderAccountHolderOptions();
   renderOwnerSelects();
   seedFormDefaults();
   updateSavingsFormOwnership();
@@ -1181,6 +1288,7 @@ function renderAll() {
   renderProjection();
   renderCalendar();
   renderContributors();
+  renderAccountsTable();
   renderTables();
   renderMobileSections();
 }
@@ -1193,20 +1301,37 @@ function populateHouseholdForm() {
   form.elements.currency.value = state.household.currency || "CAD";
   form.elements.projectionMonths.value = String(state.household.projectionMonths || 6);
   form.elements.safetyBuffer.value = state.household.safetyBuffer || "";
-  form.elements.partnerOneBalance.value = getAccountBalance(state.household.partnerOne);
-  form.elements.partnerTwoBalance.value = getAccountBalance(state.household.partnerTwo);
-  form.elements.sharedBalance.value = getAccountBalance(getSharedOwnerValue());
 }
 
 function renderOwnerSelects() {
   document.querySelectorAll(".owner-select").forEach((select) => {
     const previous = select.value;
-    renderSelectOptions(select, getOwnerOptions(select.id === "savingsOwnerSelect" ? false : true), previous);
+    if (select.id === "savingsOwnerSelect") {
+      return;
+    }
+    renderSelectOptions(select, getOwnerOptions(), previous);
   });
 }
 
+function renderAccountHolderOptions() {
+  const select = $("accountHolderSelect");
+  if (!select) {
+    return;
+  }
+
+  renderSelectOptions(
+    select,
+    [
+      { value: ACCOUNT_HOLDERS.partnerOne, label: state.household.partnerOne || "Moi" },
+      { value: ACCOUNT_HOLDERS.partnerTwo, label: state.household.partnerTwo || "Geneviève" },
+      { value: ACCOUNT_HOLDERS.shared, label: "Commun" },
+    ],
+    select.value
+  );
+}
+
 function seedFormDefaults() {
-  const fallbackOwner = state.household.partnerOne || "Moi";
+  const fallbackOwner = getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || getFirstActiveOwner() || "";
   const today = formatInputDate(new Date());
 
   document.querySelectorAll(".owner-select").forEach((select) => {
@@ -1234,17 +1359,23 @@ function seedFormDefaults() {
     plannerForm.elements.targetDate.value = formatInputDate(addMonthsClamped(new Date(), 6));
   }
 
+  const accountForm = $("accountForm");
+  if (accountForm) {
+    if (!accountForm.elements.holder.value) {
+      accountForm.elements.holder.value = ACCOUNT_HOLDERS.partnerOne;
+    }
+    if (!accountForm.elements.kind.value) {
+      accountForm.elements.kind.value = "checking";
+    }
+  }
+
   syncTransferFormOwners();
   $("projectionRangeChip").textContent = `${state.household.projectionMonths || 6} mois`;
 }
 
 function renderBalanceLabels() {
-  const partnerOne = state.household.partnerOne || "Moi";
-  const partnerTwo = state.household.partnerTwo || "Geneviève";
-  $("partnerOneBalanceLabel").textContent = `Solde de ${partnerOne}`;
-  $("partnerTwoBalanceLabel").textContent = `Solde de ${partnerTwo}`;
-  $("sharedBalanceLabel").textContent = "Solde du compte commun";
-  $("householdBalanceSummary").textContent = `Total actuel: ${formatCurrency(getTotalCurrentBalance())}`;
+  const activeCount = getActiveAccounts().length;
+  $("householdBalanceSummary").textContent = `Total actuel: ${formatCurrency(getTotalCurrentBalance())} • ${activeCount} compte${activeCount > 1 ? "s" : ""} actif${activeCount > 1 ? "s" : ""}`;
 }
 
 function renderMobileSections() {
@@ -1280,18 +1411,18 @@ function syncTransferFormOwners(changedField = "") {
   }
 
   if (!fromField.value) {
-    fromField.value = state.household.partnerOne || "Moi";
+    fromField.value = getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || getFirstActiveOwner() || "";
   }
 
   if (!toField.value) {
-    toField.value = getSharedOwnerValue();
+    toField.value = getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared) || getAlternativeOwner(fromField.value) || "";
   }
 
   if (fromField.value !== toField.value) {
     return;
   }
 
-  const alternatives = getOwnerOptions(true)
+  const alternatives = getOwnerOptions()
     .map((option) => option.value)
     .filter((value) => value !== fromField.value);
   const fallback = alternatives[0] || "";
@@ -1321,23 +1452,23 @@ function updateSavingsFormOwnership() {
   }
 
   if (scope === "shared") {
-    renderSelectOptions(ownerField, getOwnerOptions(true).filter((option) => option.value === getSharedOwnerValue()));
-    ownerField.disabled = true;
+    renderSelectOptions(ownerField, getOwnerOptions({ holder: ACCOUNT_HOLDERS.shared }), previousOwner);
+    ownerField.disabled = false;
     if (hint) {
-      hint.textContent = "Cette épargne sera visible comme un compte commun, distinct de vos comptes personnels.";
+      hint.textContent = "Choisissez le compte commun à utiliser pour cette épargne, même si vous en avez plusieurs.";
     }
     return;
   }
 
-  renderSelectOptions(ownerField, getOwnerOptions(false), previousOwner);
+  renderSelectOptions(ownerField, getOwnerOptions({ holder: "personal" }), previousOwner);
   ownerField.disabled = false;
 
   if (!ownerField.value) {
-    ownerField.value = state.household.partnerOne || "Moi";
+    ownerField.value = getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || getFirstActiveOwner() || "";
   }
 
   if (hint) {
-    hint.textContent = "Choisissez la personne qui possède cette épargne. Les objectifs communs utilisent le type Commune.";
+    hint.textContent = "Choisissez le compte personnel qui porte cette épargne. Les comptes communs passent par le type Commune.";
   }
 }
 
@@ -1400,7 +1531,7 @@ function applyGoalPlannerToSavings() {
   const result = goalPlannerState.result;
   const form = $("savingsForm");
   form.elements.id.value = result.matchedGoal ? result.matchedGoal.id : "";
-  form.elements.scope.value = result.owner === getSharedOwnerValue() ? "shared" : "personal";
+  form.elements.scope.value = isSharedOwner(result.owner) ? "shared" : "personal";
   form.elements.owner.value = result.owner;
   form.elements.label.value = result.label;
   form.elements.targetAmount.value = String(result.targetAmount);
@@ -1466,7 +1597,8 @@ function collectAlerts() {
     });
   }
 
-  getOwners().forEach((owner) => {
+  getActiveAccounts().forEach((account) => {
+    const owner = account.owner;
     const accountProjection = buildProjection(state.household.projectionMonths || 6, owner);
     const lowestPoint = accountProjection.points.reduce((lowest, point) => {
       if (!lowest || point.balance < lowest.balance) {
@@ -1514,7 +1646,8 @@ function collectAlerts() {
 function renderStats() {
   const metrics = computeMetrics();
   const totalBalance = getTotalCurrentBalance();
-  const sharedBalance = getAccountBalance(getSharedOwnerValue());
+  const sharedAccounts = getAccountsByHolder(ACCOUNT_HOLDERS.shared);
+  const sharedBalance = sumBy(sharedAccounts, (account) => account.balance || 0);
   const alerts = collectAlerts();
   const cards = [
     {
@@ -1524,9 +1657,9 @@ function renderStats() {
       tone: totalBalance < 0 ? "negative" : "positive",
     },
     {
-      label: "Compte commun",
+      label: "Comptes communs",
       value: formatCurrency(sharedBalance),
-      note: "Solde disponible pour le foyer partagé.",
+      note: `${sharedAccounts.length} compte${sharedAccounts.length > 1 ? "s" : ""} commun${sharedAccounts.length > 1 ? "s" : ""} actif${sharedAccounts.length > 1 ? "s" : ""}.`,
       tone: sharedBalance < 0 ? "negative" : "",
     },
     {
@@ -1587,6 +1720,19 @@ function renderTables() {
   renderTable("transactionsTable", state.transactions.slice().sort(sortByDateDesc), 6, renderTransactionRow);
 }
 
+function renderAccountsTable() {
+  const rows = state.accounts
+    .slice()
+    .sort((left, right) => {
+      if ((left.status === "closed") !== (right.status === "closed")) {
+        return left.status === "closed" ? 1 : -1;
+      }
+      return textValue(left.owner).localeCompare(textValue(right.owner), "fr-CA");
+    });
+
+  renderTable("accountsTable", rows, 6, renderAccountRow);
+}
+
 function renderTable(targetId, rows, colSpan, renderer) {
   const target = $(targetId);
   if (!rows.length) {
@@ -1595,6 +1741,26 @@ function renderTable(targetId, rows, colSpan, renderer) {
   }
 
   target.innerHTML = rows.map(renderer).join("");
+}
+
+function renderAccountRow(account) {
+  const statusTone = account.status === "closed" ? "neutral" : "success";
+  const kindLabel = ACCOUNT_KIND_LABELS[account.kind] || account.kind;
+  const holderLabel = formatAccountHolder(account.holder);
+  const ownerNote = account.id === ACCOUNT_IDS.shared ? "Compte principal du foyer" : "";
+  return `
+    <tr>
+      <td>
+        <div>${escapeHtml(account.owner)}</div>
+        ${ownerNote ? `<small>${escapeHtml(ownerNote)}</small>` : ""}
+      </td>
+      <td>${escapeHtml(holderLabel)}</td>
+      <td>${escapeHtml(kindLabel)}</td>
+      <td><span class="status-chip ${statusTone}">${escapeHtml(ACCOUNT_STATUS_LABELS[account.status] || account.status)}</span></td>
+      <td class="${account.balance < 0 ? "negative" : "positive"}">${escapeHtml(formatCurrency(account.balance || 0))}</td>
+      <td>${renderAccountActions(account)}</td>
+    </tr>
+  `;
 }
 
 function renderPaycheckRow(item) {
@@ -1696,6 +1862,16 @@ function renderActions(collection, id) {
   `;
 }
 
+function renderAccountActions(account) {
+  const toggleLabel = account.status === "closed" ? "Rouvrir" : "Fermer";
+  return `
+    <div class="table-actions">
+      <button class="table-button edit" type="button" data-action="edit" data-collection="accounts" data-id="${escapeHtml(account.id)}">Modifier</button>
+      <button class="table-button delete" type="button" data-action="toggle-status" data-collection="accounts" data-id="${escapeHtml(account.id)}">${escapeHtml(toggleLabel)}</button>
+    </div>
+  `;
+}
+
 function handleTableActions(event) {
   const button = event.target.closest("[data-action]");
   if (!button) {
@@ -1704,6 +1880,11 @@ function handleTableActions(event) {
 
   const { action, collection, id } = button.dataset;
   if (!action || !collection || !id) {
+    return;
+  }
+
+  if (collection === "accounts" && action === "toggle-status") {
+    toggleAccountStatus(id);
     return;
   }
 
@@ -1724,6 +1905,7 @@ function editItem(collection, id) {
   }
 
   const formIdByCollection = {
+    accounts: "accountForm",
     paychecks: "paycheckForm",
     bills: "billForm",
     savingsGoals: "savingsForm",
@@ -1732,11 +1914,17 @@ function editItem(collection, id) {
   };
 
   const form = $(formIdByCollection[collection]);
+  if (!form) {
+    return;
+  }
   Object.entries(item).forEach(([key, value]) => {
     if (form.elements[key]) {
       form.elements[key].value = value;
     }
   });
+  if (collection === "accounts") {
+    renderAccountHolderOptions();
+  }
   if (collection === "savingsGoals") {
     updateSavingsFormOwnership();
   }
@@ -1744,6 +1932,35 @@ function editItem(collection, id) {
     syncTransferFormOwners();
   }
   form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function toggleAccountStatus(id) {
+  const index = state.accounts.findIndex((account) => account.id === id);
+  if (index < 0) {
+    return;
+  }
+
+  const account = state.accounts[index];
+  if (account.status === "closed") {
+    state.accounts[index] = { ...account, status: "active" };
+    persistState();
+    renderAll();
+    return;
+  }
+
+  if (Math.abs(account.balance || 0) > 0.009) {
+    window.alert("Un compte doit être à zéro avant d'être fermé.");
+    return;
+  }
+
+  if (hasPlannedActivityForAccount(account.owner)) {
+    window.alert("Ce compte a encore des entrées planifiées. Déplace ou termine-les avant de le fermer.");
+    return;
+  }
+
+  state.accounts[index] = { ...account, status: "closed" };
+  persistState();
+  renderAll();
 }
 
 function renderProjection() {
@@ -1920,22 +2137,25 @@ function getCalendarDayDelta(event) {
 }
 
 function renderContributors() {
-  $("contributorsGrid").innerHTML = computeOwnerMetrics()
-    .map(
-      (card) => `
-        <article class="contributor-card fade-in">
-          <span>${escapeHtml(card.displayName)}</span>
-          <strong class="${card.projectedBalance >= 0 ? "positive" : "negative"}">${escapeHtml(formatCurrency(card.projectedBalance))}</strong>
-          <p>${escapeHtml(card.note)}</p>
-          <div class="badge-row">
-            <span class="badge">Actuel ${escapeHtml(formatCurrency(card.currentBalance))}</span>
-            <span class="badge">Net ${escapeHtml(formatCurrency(card.net))}</span>
-            <span class="badge">Point bas ${escapeHtml(formatCurrency(card.lowestBalance))}</span>
-          </div>
-        </article>
-      `
-    )
-    .join("");
+  const cards = computeOwnerMetrics();
+  $("contributorsGrid").innerHTML = cards.length
+    ? cards
+        .map(
+          (card) => `
+            <article class="contributor-card fade-in">
+              <span>${escapeHtml(card.displayName)}</span>
+              <strong class="${card.projectedBalance >= 0 ? "positive" : "negative"}">${escapeHtml(formatCurrency(card.projectedBalance))}</strong>
+              <p>${escapeHtml(card.note)}</p>
+              <div class="badge-row">
+                <span class="badge">Actuel ${escapeHtml(formatCurrency(card.currentBalance))}</span>
+                <span class="badge">Net ${escapeHtml(formatCurrency(card.net))}</span>
+                <span class="badge">Point bas ${escapeHtml(formatCurrency(card.lowestBalance))}</span>
+              </div>
+            </article>
+          `
+        )
+        .join("")
+    : `<article class="empty-state">Ajoute au moins un compte actif pour suivre les projections par compte.</article>`;
 }
 
 function computeMetrics() {
@@ -1964,7 +2184,8 @@ function computeMetrics() {
 }
 
 function computeOwnerMetrics() {
-  return getOwners().map((owner) => {
+  return getActiveAccounts().map((account) => {
+    const owner = account.owner;
     const income = sumBy(
       state.paychecks.filter((item) => item.owner === owner),
       (item) => monthlyAmount(item.amount, item.frequency)
@@ -1977,7 +2198,7 @@ function computeOwnerMetrics() {
       state.savingsGoals.filter((item) => item.owner === owner),
       (item) => monthlyAmount(item.contributionAmount, item.frequency)
     );
-    const shared = isSharedOwner(owner);
+    const shared = isSharedHolder(account.holder);
     const projection = buildProjection(state.household.projectionMonths || 6, owner);
     const lowestPoint = projection.points.reduce((lowest, point) => {
       if (!lowest || point.balance < lowest.balance) {
@@ -1999,8 +2220,8 @@ function computeOwnerMetrics() {
       savings,
       net: income - bills - savings,
       note: shared
-        ? "Projection du compte commun et de l'épargne partagée."
-        : `Solde projeté à ${state.household.projectionMonths || 6} mois.`,
+        ? `${ACCOUNT_KIND_LABELS[account.kind] || account.kind} commun projeté sur ${state.household.projectionMonths || 6} mois.`
+        : `${ACCOUNT_KIND_LABELS[account.kind] || account.kind} de ${formatAccountHolder(account.holder)} projeté sur ${state.household.projectionMonths || 6} mois.`,
     };
   });
 }
@@ -2216,7 +2437,7 @@ function importState(event) {
 
 function buildGoalPlannerResult(formData) {
   const label = textValue(formData.get("label")) || "Nouveau but";
-  const owner = textValue(formData.get("owner")) || state.household.partnerOne || "Moi";
+  const owner = textValue(formData.get("owner")) || getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || getFirstActiveOwner() || "Moi";
   const targetAmount = parseAmount(formData.get("targetAmount"));
   const currentAmount = parseAmount(formData.get("currentAmount"));
   const startDate = textValue(formData.get("startDate"));
@@ -2509,32 +2730,114 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function sanitizeAccounts(inputAccounts, household, legacyCurrentBalance) {
-  const defaults = createAccountsForHousehold(household, legacyCurrentBalance);
-  if (!Array.isArray(inputAccounts) || !inputAccounts.length) {
-    return defaults;
-  }
+function collectReferencedAccountSeeds(input, household) {
+  const seeds = [];
+  const pushSeed = (owner, holder, kind = "checking") => {
+    const label = textValue(owner);
+    if (!label) {
+      return;
+    }
+    seeds.push({
+      id: "",
+      owner: label,
+      holder,
+      kind,
+      status: "active",
+      balance: 0,
+    });
+  };
 
-  return defaults.map((defaultAccount) => {
-    const existing = inputAccounts.find(
-      (account) =>
-        account.id === defaultAccount.id ||
-        textValue(account.owner) === defaultAccount.owner ||
-        (defaultAccount.kind === "shared" && textValue(account.kind) === "shared")
-    );
-
-    return {
-      ...defaultAccount,
-      balance: parseAmount(existing ? existing.balance : defaultAccount.balance),
-    };
+  (input.paychecks || []).forEach((item) => {
+    pushSeed(item.owner, inferHolderFromOwner(item.owner, household));
   });
+  (input.bills || []).forEach((item) => {
+    pushSeed(item.owner, inferHolderFromOwner(item.owner, household));
+  });
+  (input.transactions || []).forEach((item) => {
+    pushSeed(item.owner, inferHolderFromOwner(item.owner, household));
+  });
+  (input.savingsGoals || []).forEach((item) => {
+    const shared = textValue(item.scope) === "shared" || textValue(item.owner) === getSharedOwnerValueFromHousehold(household);
+    pushSeed(item.owner, shared ? ACCOUNT_HOLDERS.shared : inferHolderFromOwner(item.owner, household), "savings");
+  });
+  (input.transfers || []).forEach((item) => {
+    pushSeed(item.fromOwner, inferHolderFromOwner(item.fromOwner, household));
+    pushSeed(item.toOwner, inferHolderFromOwner(item.toOwner, household));
+  });
+
+  return seeds;
 }
 
-function sanitizeOwnedItem(item, household) {
+function sanitizeAccounts(inputAccounts, household, legacyCurrentBalance, referencedSeeds = []) {
+  const defaults = createAccountsForHousehold(household, legacyCurrentBalance);
+  const rawAccounts = Array.isArray(inputAccounts) ? inputAccounts : [];
+  const sanitized = rawAccounts.map((account) => sanitizeAccount(account, household)).filter((account) => textValue(account.owner));
+  const merged = defaults.map((defaultAccount) => {
+    const existingIndex = sanitized.findIndex(
+      (account) => account.id === defaultAccount.id || textValue(account.owner) === defaultAccount.owner
+    );
+    if (existingIndex < 0) {
+      return defaultAccount;
+    }
+
+    const existing = sanitized.splice(existingIndex, 1)[0];
+    return {
+      ...defaultAccount,
+      ...existing,
+      holder: sanitizeAccountHolder(existing.holder, household, existing.id, existing.kind, existing.owner),
+      kind: sanitizeAccountKind(existing.kind),
+      status: existing.status === "closed" ? "closed" : "active",
+      balance: parseAmount(existing.balance),
+    };
+  });
+
+  const extras = [...sanitized, ...referencedSeeds.map((seed) => sanitizeAccount(seed, household))];
+  return extras.reduce((accounts, account) => {
+    const ownerKey = textValue(account.owner).toLowerCase();
+    if (!ownerKey) {
+      return accounts;
+    }
+    if (
+      accounts.some(
+        (existing) => textValue(existing.owner).toLowerCase() === ownerKey || textValue(existing.id) === textValue(account.id)
+      )
+    ) {
+      return accounts;
+    }
+    accounts.push({
+      ...account,
+      id: textValue(account.id) || createId(),
+      balance: parseAmount(account.balance),
+      status: account.status === "closed" ? "closed" : "active",
+    });
+    return accounts;
+  }, merged.slice());
+}
+
+function sanitizeAccount(account, household) {
+  const holder = sanitizeAccountHolder(account.holder, household, account.id, account.kind, account.owner);
+  const fallbackOwner =
+    holder === ACCOUNT_HOLDERS.shared
+      ? getSharedOwnerValueFromHousehold(household)
+      : holder === ACCOUNT_HOLDERS.partnerTwo
+        ? household.partnerTwo || "Geneviève"
+        : household.partnerOne || "Moi";
+
+  return {
+    id: textValue(account.id) || createId(),
+    owner: textValue(account.owner) || fallbackOwner,
+    holder,
+    kind: sanitizeAccountKind(account.kind),
+    status: textValue(account.status) === "closed" ? "closed" : "active",
+    balance: parseAmount(account.balance),
+  };
+}
+
+function sanitizeOwnedItem(item, household, accounts) {
   return {
     ...item,
     id: textValue(item.id) || createId(),
-    owner: sanitizeOwnerLabel(item.owner, household),
+    owner: sanitizeOwnerLabel(item.owner, household, accounts, ACCOUNT_HOLDERS.partnerOne),
     label: textValue(item.label),
     frequency: textValue(item.frequency) || "monthly",
     nextDate: textValue(item.nextDate),
@@ -2546,14 +2849,26 @@ function sanitizeOwnedItem(item, household) {
   };
 }
 
-function sanitizeSavingsGoal(item, household) {
-  const owner = sanitizeOwnerLabel(item.owner, household);
-  const scope = textValue(item.scope) === "shared" || owner === getSharedOwnerValueFromHousehold(household) ? "shared" : "personal";
+function sanitizeSavingsGoal(item, household, accounts) {
+  const requestedShared = textValue(item.scope) === "shared";
+  const owner = sanitizeOwnerLabel(
+    item.owner,
+    household,
+    accounts,
+    requestedShared ? ACCOUNT_HOLDERS.shared : ACCOUNT_HOLDERS.partnerOne
+  );
+  const scope = requestedShared || isSharedOwner(owner, accounts) ? "shared" : "personal";
 
   return {
     id: textValue(item.id) || createId(),
     scope,
-    owner: scope === "shared" ? getSharedOwnerValueFromHousehold(household) : owner || household.partnerOne || "Moi",
+    owner:
+      owner ||
+      (scope === "shared"
+        ? getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, accounts, { includeClosed: true })
+        : getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne, accounts, { includeClosed: true })) ||
+      household.partnerOne ||
+      "Moi",
     label: textValue(item.label),
     targetAmount: parseAmount(item.targetAmount),
     currentAmount: parseAmount(item.currentAmount),
@@ -2565,11 +2880,11 @@ function sanitizeSavingsGoal(item, household) {
   };
 }
 
-function sanitizeTransfer(item, household) {
+function sanitizeTransfer(item, household, accounts) {
   return {
     id: textValue(item.id) || createId(),
-    fromOwner: sanitizeOwnerLabel(item.fromOwner, household),
-    toOwner: sanitizeOwnerLabel(item.toOwner, household),
+    fromOwner: sanitizeOwnerLabel(item.fromOwner, household, accounts, ACCOUNT_HOLDERS.partnerOne),
+    toOwner: sanitizeOwnerLabel(item.toOwner, household, accounts, ACCOUNT_HOLDERS.shared),
     label: textValue(item.label) || "Virement",
     amount: parseAmount(item.amount),
     date: textValue(item.date),
@@ -2582,34 +2897,104 @@ function createAccountsForHousehold(household, legacyCurrentBalance = 0) {
     {
       id: ACCOUNT_IDS.partnerOne,
       owner: household.partnerOne || "Moi",
-      kind: "personal",
+      holder: ACCOUNT_HOLDERS.partnerOne,
+      kind: "checking",
+      status: "active",
       balance: parseAmount(legacyCurrentBalance),
     },
     {
       id: ACCOUNT_IDS.partnerTwo,
       owner: household.partnerTwo || "Geneviève",
-      kind: "personal",
+      holder: ACCOUNT_HOLDERS.partnerTwo,
+      kind: "checking",
+      status: "active",
       balance: 0,
     },
     {
       id: ACCOUNT_IDS.shared,
       owner: getSharedOwnerValueFromHousehold(household),
-      kind: "shared",
+      holder: ACCOUNT_HOLDERS.shared,
+      kind: "checking",
+      status: "active",
       balance: 0,
     },
   ];
 }
 
-function sanitizeOwnerLabel(owner, household) {
-  const value = textValue(owner);
-  if (!value) {
-    return household.partnerOne || "Moi";
-  }
-  if (value === household.partnerOne || value === household.partnerTwo || value === household.householdName) {
+function sanitizeAccountHolder(holder, household, accountId = "", legacyKind = "", owner = "") {
+  const value = textValue(holder);
+  if (value === ACCOUNT_HOLDERS.partnerOne || value === ACCOUNT_HOLDERS.partnerTwo || value === ACCOUNT_HOLDERS.shared) {
     return value;
   }
+  if (accountId === ACCOUNT_IDS.partnerOne) {
+    return ACCOUNT_HOLDERS.partnerOne;
+  }
+  if (accountId === ACCOUNT_IDS.partnerTwo) {
+    return ACCOUNT_HOLDERS.partnerTwo;
+  }
+  if (accountId === ACCOUNT_IDS.shared) {
+    return ACCOUNT_HOLDERS.shared;
+  }
+  if (textValue(legacyKind) === "shared" || textValue(owner) === "Compte commun") {
+    return ACCOUNT_HOLDERS.shared;
+  }
+  return inferHolderFromOwner(owner, household);
+}
+
+function sanitizeAccountKind(kind) {
+  const value = textValue(kind);
+  if (value === "checking" || value === "savings" || value === "other") {
+    return value;
+  }
+  return "checking";
+}
+
+function inferHolderFromOwner(owner, household) {
+  const value = textValue(owner);
+  const partnerOne = textValue(household.partnerOne);
+  const partnerTwo = textValue(household.partnerTwo);
+  const shared = textValue(household.householdName);
+  if (!value) {
+    return ACCOUNT_HOLDERS.partnerOne;
+  }
+  if (value === "Compte commun" || value === shared) {
+    return ACCOUNT_HOLDERS.shared;
+  }
+  if (value === partnerTwo) {
+    return ACCOUNT_HOLDERS.partnerTwo;
+  }
+  if (value === partnerOne) {
+    return ACCOUNT_HOLDERS.partnerOne;
+  }
+  if (partnerTwo && value.toLowerCase().includes(partnerTwo.toLowerCase())) {
+    return ACCOUNT_HOLDERS.partnerTwo;
+  }
+  if (partnerOne && value.toLowerCase().includes(partnerOne.toLowerCase())) {
+    return ACCOUNT_HOLDERS.partnerOne;
+  }
+  return ACCOUNT_HOLDERS.partnerOne;
+}
+
+function sanitizeOwnerLabel(owner, household, accounts, fallbackHolder = ACCOUNT_HOLDERS.partnerOne) {
+  const value = textValue(owner);
   if (value === "Compte commun") {
-    return getSharedOwnerValueFromHousehold(household);
+    return getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, accounts, { includeClosed: true }) || getSharedOwnerValueFromHousehold(household);
+  }
+  if (!value) {
+    return (
+      getDefaultOwnerForHolder(fallbackHolder, accounts, { includeClosed: true }) ||
+      getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne, accounts, { includeClosed: true }) ||
+      household.partnerOne ||
+      "Moi"
+    );
+  }
+
+  const existing = getAccountByOwner(value, accounts);
+  if (existing) {
+    return existing.owner;
+  }
+  if (value === household.householdName) {
+    return getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, accounts, { includeClosed: true }) || value;
   }
   return value;
 }
@@ -2619,46 +3004,149 @@ function getSharedOwnerValueFromHousehold(household) {
 }
 
 function getSharedOwnerValue() {
-  return getSharedOwnerValueFromHousehold(state.household);
+  return getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, state.accounts, { includeClosed: true }) || getSharedOwnerValueFromHousehold(state.household);
 }
 
-function isSharedOwner(owner) {
-  return textValue(owner) === getSharedOwnerValue();
+function formatAccountHolder(holder) {
+  if (holder === ACCOUNT_HOLDERS.shared) {
+    return "Commun";
+  }
+  if (holder === ACCOUNT_HOLDERS.partnerTwo) {
+    return state.household.partnerTwo || "Geneviève";
+  }
+  return state.household.partnerOne || "Moi";
+}
+
+function isSharedHolder(holder) {
+  return holder === ACCOUNT_HOLDERS.shared;
+}
+
+function isSharedOwner(owner, accounts = state.accounts) {
+  return isSharedHolder(getAccountByOwner(owner, accounts)?.holder);
 }
 
 function formatOwnerLabel(owner) {
-  return isSharedOwner(owner) ? "Compte commun" : textValue(owner) || "-";
+  return textValue(owner) || "-";
 }
 
-function getAccountByOwner(owner) {
-  return state.accounts.find((account) => account.owner === owner) || null;
+function getAccountByOwner(owner, accounts = state.accounts) {
+  return (accounts || []).find((account) => account.owner === owner) || null;
 }
 
-function getAccountBalance(owner) {
-  const account = getAccountByOwner(owner);
+function getAccountBalance(owner, accounts = state.accounts) {
+  const account = getAccountByOwner(owner, accounts);
   return account ? account.balance || 0 : 0;
 }
 
-function getTotalCurrentBalance() {
-  return sumBy(state.accounts, (account) => account.balance || 0);
+function getTotalCurrentBalance(accounts = state.accounts) {
+  return sumBy(accounts || [], (account) => account.balance || 0);
 }
 
 function syncCurrentBalance() {
   state.household.currentBalance = getTotalCurrentBalance();
 }
 
-function getPersonOwners() {
-  return [state.household.partnerOne || "Moi", state.household.partnerTwo || "Geneviève"].filter(
-    (value, index, array) => value && array.indexOf(value) === index
+function getAccountsByHolder(holder, options = {}) {
+  const includeClosed = options.includeClosed === true;
+  return (state.accounts || []).filter((account) => {
+    if (!includeClosed && account.status === "closed") {
+      return false;
+    }
+    if (holder === "personal") {
+      return !isSharedHolder(account.holder);
+    }
+    return !holder || account.holder === holder;
+  });
+}
+
+function getActiveAccounts() {
+  return getAccountsByHolder("", { includeClosed: false });
+}
+
+function getDefaultOwnerForHolder(holder, accounts = state.accounts, options = {}) {
+  const includeClosed = options.includeClosed === true;
+  const list = (accounts || []).filter((account) => {
+    if (!includeClosed && account.status === "closed") {
+      return false;
+    }
+    if (holder === "personal") {
+      return !isSharedHolder(account.holder);
+    }
+    return account.holder === holder;
+  });
+  const preferredId =
+    holder === ACCOUNT_HOLDERS.partnerOne
+      ? ACCOUNT_IDS.partnerOne
+      : holder === ACCOUNT_HOLDERS.partnerTwo
+        ? ACCOUNT_IDS.partnerTwo
+        : holder === ACCOUNT_HOLDERS.shared
+          ? ACCOUNT_IDS.shared
+          : "";
+  return (list.find((account) => account.id === preferredId) || list[0] || {}).owner || "";
+}
+
+function getFirstActiveOwner(accounts = state.accounts) {
+  return ((accounts || []).find((account) => account.status !== "closed") || {}).owner || "";
+}
+
+function getAlternativeOwner(owner) {
+  return (getActiveAccounts().find((account) => account.owner !== owner) || {}).owner || "";
+}
+
+function getOwnerOptions(options = {}) {
+  const includeClosed = options.includeClosed === true;
+  const holder = options.holder || "";
+  const accounts = (includeClosed ? state.accounts : getActiveAccounts()).filter((account) => {
+    if (holder === "personal") {
+      return !isSharedHolder(account.holder);
+    }
+    return !holder || account.holder === holder;
+  });
+
+  return accounts.map((account) => ({
+    value: account.owner,
+    label: account.owner,
+  }));
+}
+
+function readOwnerWithFallback(value, fallbackHolder) {
+  return (
+    textValue(value) ||
+    getDefaultOwnerForHolder(fallbackHolder) ||
+    getFirstActiveOwner() ||
+    state.household.partnerOne ||
+    "Moi"
   );
 }
 
-function getOwnerOptions(includeShared) {
-  const options = getPersonOwners().map((owner) => ({ value: owner, label: owner }));
-  if (includeShared) {
-    options.push({ value: getSharedOwnerValue(), label: "Compte commun" });
-  }
-  return options;
+function hasPlannedActivityForAccount(owner) {
+  const today = startOfDay(new Date());
+  const recurringStillActive = (item) => {
+    const nextDate = parseDate(item.nextDate);
+    if (Number.isNaN(nextDate.getTime())) {
+      return false;
+    }
+    if (!item.endDate) {
+      return true;
+    }
+    return parseDate(item.endDate) >= today;
+  };
+
+  return (
+    state.paychecks.some((item) => item.owner === owner && recurringStillActive(item)) ||
+    state.bills.some((item) => item.owner === owner && recurringStillActive(item)) ||
+    state.savingsGoals.some(
+      (item) =>
+        item.owner === owner &&
+        (parseAmount(item.currentAmount) > 0 ||
+          parseAmount(item.targetAmount) > 0 ||
+          (parseAmount(item.contributionAmount) > 0 && recurringStillActive(item)))
+    ) ||
+    state.transactions.some((item) => item.owner === owner && parseDate(item.date) >= today) ||
+    state.transfers.some(
+      (item) => (item.fromOwner === owner || item.toOwner === owner) && parseDate(item.date) >= today
+    )
+  );
 }
 
 function renderSelectOptions(select, options, preferredValue) {
@@ -2666,21 +3154,28 @@ function renderSelectOptions(select, options, preferredValue) {
     return;
   }
 
-  select.innerHTML = options
+  const nextOptions = options.slice();
+  if (preferredValue && !nextOptions.some((option) => option.value === preferredValue)) {
+    const account = getAccountByOwner(preferredValue, state.accounts);
+    nextOptions.push({
+      value: preferredValue,
+      label: account && account.status === "closed" ? `${preferredValue} (fermé)` : preferredValue,
+    });
+  }
+
+  select.innerHTML = nextOptions
     .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
     .join("");
 
-  const fallbackValue = options[0] ? options[0].value : "";
-  const nextValue = options.some((option) => option.value === preferredValue) ? preferredValue : fallbackValue;
+  const fallbackValue = nextOptions[0] ? nextOptions[0].value : "";
+  const nextValue = nextOptions.some((option) => option.value === preferredValue) ? preferredValue : fallbackValue;
   if (nextValue) {
     select.value = nextValue;
   }
 }
 
 function getOwners() {
-  return [...getPersonOwners(), getSharedOwnerValue()].filter(
-    (value, index, array) => value && array.indexOf(value) === index
-  );
+  return getActiveAccounts().map((account) => account.owner);
 }
 
 function sortByDateDesc(a, b) {
