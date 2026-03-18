@@ -215,6 +215,12 @@ const COLLECTION_LABELS = {
 };
 
 const CLOUD_SYNC_DELAY_MS = 500;
+const EMBEDDED_SUPABASE_CONFIG = {
+  url: "https://rpgplqeabqcdavnvnukj.supabase.co",
+  anonKey:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwZ3BscWVhYnFjZGF2bnZudWtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MzExMDAsImV4cCI6MjA4OTQwNzEwMH0.NLp7fCR_MxmMUha1nzKiYN8MpF88Yo_ofUIOH5bi7_M",
+  redirectUrl: "https://sim14ch-habs.github.io/CODEX-Finance/",
+};
 
 const cloudState = {
   config: null,
@@ -843,7 +849,7 @@ function readSavingsScope(formData) {
 }
 
 function getCloudConfig() {
-  const rawConfig = window.BUDGET_DUO_SUPABASE || {};
+  const rawConfig = window.BUDGET_DUO_SUPABASE || EMBEDDED_SUPABASE_CONFIG;
   const url = textValue(rawConfig.url);
   const anonKey = textValue(rawConfig.anonKey);
   const redirectUrl = textValue(rawConfig.redirectUrl) || `${window.location.origin}${window.location.pathname}`;
