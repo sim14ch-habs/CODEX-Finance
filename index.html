@@ -17,14 +17,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260318-1">
+    <link rel="stylesheet" href="styles.css?v=20260318-2">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-18 / shared-savings</p>
+          <p class="eyebrow">Build 2026-03-18 / goal-planner</p>
           <h1>Suivez vos finances a deux et voyez ou va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'epargne et vos
@@ -274,6 +274,81 @@
             <p>Resume mensuel pour chaque personne du foyer et les postes partages.</p>
           </div>
           <div class="contributors" id="contributorsGrid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">But</p>
+              <h2>Planifier un objectif</h2>
+            </div>
+            <p>Entrez une cible et une echeance pour estimer le montant a mettre de cote a chaque versement.</p>
+          </div>
+          <div class="planner-layout">
+            <form id="goalPlannerForm" class="planner-form">
+              <label>
+                Nom du but
+                <input name="label" type="text" placeholder="Voyage, auto, coussin commun">
+              </label>
+              <label>
+                Montant vise
+                <input name="targetAmount" type="number" step="0.01" placeholder="5000">
+              </label>
+              <label>
+                Deja mis de cote
+                <input name="currentAmount" type="number" step="0.01" placeholder="750">
+              </label>
+              <label>
+                Debut des versements
+                <input name="startDate" type="date">
+              </label>
+              <label>
+                Date cible
+                <input name="targetDate" type="date">
+              </label>
+              <label>
+                Frequence
+                <select name="frequency">
+                  <option value="weekly">Chaque semaine</option>
+                  <option value="biweekly">Toutes les 2 semaines</option>
+                  <option value="monthly">Chaque mois</option>
+                </select>
+              </label>
+              <div class="form-actions form-actions-wide">
+                <button class="button primary" type="submit">Calculer</button>
+              </div>
+            </form>
+
+            <aside class="planner-card">
+              <span class="section-kicker">Estimation</span>
+              <strong id="goalPlannerHeadline">A calculer</strong>
+              <p id="goalPlannerSummary">
+                Remplissez le but, l'echeance et la frequence pour voir l'effort a fournir.
+              </p>
+              <div class="planner-stats">
+                <div class="planner-stat">
+                  <span>Montant restant</span>
+                  <strong id="goalPlannerRemaining">-</strong>
+                </div>
+                <div class="planner-stat">
+                  <span>Nombre de versements</span>
+                  <strong id="goalPlannerPeriods">-</strong>
+                </div>
+                <div class="planner-stat">
+                  <span>Equivalent mensuel</span>
+                  <strong id="goalPlannerMonthly">-</strong>
+                </div>
+              </div>
+              <p id="goalPlannerBreakdown" class="helper-text">
+                Le calcul pourra ensuite pre-remplir un objectif d'epargne.
+              </p>
+              <div class="planner-actions">
+                <button id="goalPlannerUseBtn" class="button secondary" type="button" disabled>
+                  Utiliser dans l'objectif d'epargne
+                </button>
+              </div>
+            </aside>
+          </div>
         </section>
 
         <section class="cards-grid">
@@ -555,6 +630,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260317-1"></script>
-    <script src="app.js?v=20260318-1"></script>
+    <script src="app.js?v=20260318-2"></script>
   </body>
 </html>

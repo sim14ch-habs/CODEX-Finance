@@ -9,6 +9,7 @@ Tableau de bord statique pour suivre un budget de couple, les factures, l'epargn
 - factures recurrentes
 - objectifs d'epargne
 - objectifs d'epargne personnels ou communs
+- planificateur de but avec estimation par frequence
 - mouvements ponctuels
 - projection du compte sur plusieurs mois
 - sauvegarde locale dans le navigateur

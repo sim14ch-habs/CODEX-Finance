@@ -77,6 +77,10 @@ const cloudState = {
   lastSyncAt: "",
 };
 
+const goalPlannerState = {
+  result: null,
+};
+
 const $ = (id) => document.getElementById(id);
 function cloneDefaults() {
   return JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -142,6 +146,7 @@ function bindEvents() {
   $("transactionForm").addEventListener("submit", (event) =>
     upsertCollection(event, "transactions", readTransactionForm)
   );
+  $("goalPlannerForm").addEventListener("submit", handleGoalPlannerSubmit);
 
   document.querySelectorAll(".form-reset").forEach((button) => {
     button.addEventListener("click", () => resetForm(button.dataset.form));
@@ -181,6 +186,7 @@ function bindEvents() {
     void signOutFromCloud();
   });
   $("savingsForm").elements.scope.addEventListener("change", updateSavingsFormOwnership);
+  $("goalPlannerUseBtn").addEventListener("click", applyGoalPlannerToSavings);
 }
 
 function saveHousehold(event) {
@@ -857,6 +863,7 @@ function renderAll() {
   seedFormDefaults();
   updateSavingsFormOwnership();
   renderCloudPanel();
+  renderGoalPlanner();
   renderStats();
   renderProjection();
   renderContributors();
@@ -896,12 +903,18 @@ function seedFormDefaults() {
     ["billForm", "nextDate"],
     ["savingsForm", "nextDate"],
     ["transactionForm", "date"],
+    ["goalPlannerForm", "startDate"],
   ].forEach(([formId, field]) => {
     const form = $(formId);
     if (form && form.elements[field] && !form.elements[field].value) {
       form.elements[field].value = today;
     }
   });
+
+  const plannerForm = $("goalPlannerForm");
+  if (plannerForm && plannerForm.elements.targetDate && !plannerForm.elements.targetDate.value) {
+    plannerForm.elements.targetDate.value = formatInputDate(addMonthsClamped(new Date(), 6));
+  }
 
   $("projectionRangeChip").textContent = `${state.household.projectionMonths || 6} mois`;
 }
@@ -941,6 +954,70 @@ function updateSavingsFormOwnership() {
   if (hint) {
     hint.textContent = "Choisissez la personne qui possede cette epargne. Les objectifs communs utilisent le type Commune.";
   }
+}
+
+function handleGoalPlannerSubmit(event) {
+  event.preventDefault();
+  const result = buildGoalPlannerResult(new FormData(event.currentTarget));
+  if (!result) {
+    return;
+  }
+
+  goalPlannerState.result = result;
+  renderGoalPlanner();
+}
+
+function renderGoalPlanner() {
+  const result = goalPlannerState.result;
+  const useButton = $("goalPlannerUseBtn");
+
+  if (!result) {
+    $("goalPlannerHeadline").textContent = "A calculer";
+    $("goalPlannerSummary").textContent =
+      "Remplissez le but, l'echeance et la frequence pour voir l'effort a fournir.";
+    $("goalPlannerRemaining").textContent = "-";
+    $("goalPlannerPeriods").textContent = "-";
+    $("goalPlannerMonthly").textContent = "-";
+    $("goalPlannerBreakdown").textContent =
+      "Le calcul pourra ensuite pre-remplir un objectif d'epargne.";
+    useButton.disabled = true;
+    return;
+  }
+
+  const frequencyLabel = FREQUENCY_LABELS[result.frequency] || result.frequency;
+  $("goalPlannerHeadline").textContent =
+    result.remainingAmount > 0
+      ? `${formatCurrency(result.contributionAmount)} / ${frequencyLabel.toLowerCase()}`
+      : "Objectif deja finance";
+  $("goalPlannerSummary").textContent =
+    result.remainingAmount > 0
+      ? `${result.periods} ${result.periods > 1 ? "versements" : "versement"} du ${formatDate(result.startDate)} au ${formatDate(result.targetDate)}.`
+      : `${result.label} atteint deja la cible indiquee avec le montant actuel.`;
+  $("goalPlannerRemaining").textContent = formatCurrency(result.remainingAmount);
+  $("goalPlannerPeriods").textContent = String(result.periods);
+  $("goalPlannerMonthly").textContent = formatCurrency(result.monthlyEquivalent);
+  $("goalPlannerBreakdown").textContent =
+    result.remainingAmount > 0
+      ? `${result.label} : cible ${formatCurrency(result.targetAmount)}, deja ${formatCurrency(result.currentAmount)}.`
+      : `Tu peux quand meme reutiliser ce but pour garder une trace dans la section epargne.`;
+  useButton.disabled = false;
+}
+
+function applyGoalPlannerToSavings() {
+  if (!goalPlannerState.result) {
+    return;
+  }
+
+  const result = goalPlannerState.result;
+  const form = $("savingsForm");
+  form.elements.label.value = result.label;
+  form.elements.targetAmount.value = String(result.targetAmount);
+  form.elements.currentAmount.value = String(result.currentAmount);
+  form.elements.contributionAmount.value = String(result.contributionAmount);
+  form.elements.frequency.value = result.frequency;
+  form.elements.nextDate.value = result.startDate;
+  updateSavingsFormOwnership();
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function renderStats() {
@@ -1508,6 +1585,72 @@ function importState(event) {
   event.target.value = "";
 }
 
+function buildGoalPlannerResult(formData) {
+  const label = textValue(formData.get("label")) || "Nouveau but";
+  const targetAmount = parseAmount(formData.get("targetAmount"));
+  const currentAmount = parseAmount(formData.get("currentAmount"));
+  const startDate = textValue(formData.get("startDate"));
+  const targetDate = textValue(formData.get("targetDate"));
+  const frequency = textValue(formData.get("frequency")) || "monthly";
+
+  if (!targetAmount || !startDate || !targetDate) {
+    window.alert("Ajoutez au minimum le montant vise, la date de debut et la date cible.");
+    return null;
+  }
+
+  const start = parseDate(startDate);
+  const end = parseDate(targetDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    window.alert("Les dates du but ne sont pas valides.");
+    return null;
+  }
+
+  if (end < start) {
+    window.alert("La date cible doit etre egale ou posterieure au debut des versements.");
+    return null;
+  }
+
+  const periods = countContributionSlots(startDate, targetDate, frequency);
+  if (!periods) {
+    window.alert("Impossible de calculer des versements avec ces dates.");
+    return null;
+  }
+
+  const remainingAmount = Math.max(targetAmount - currentAmount, 0);
+  const contributionAmount = remainingAmount > 0 ? roundUpCurrency(remainingAmount / periods) : 0;
+
+  return {
+    label,
+    targetAmount,
+    currentAmount,
+    remainingAmount,
+    startDate,
+    targetDate,
+    frequency,
+    periods,
+    contributionAmount,
+    monthlyEquivalent: monthlyAmount(contributionAmount, frequency),
+  };
+}
+
+function countContributionSlots(startDate, targetDate, frequency) {
+  const start = parseDate(startDate);
+  const end = parseDate(targetDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return 0;
+  }
+
+  let cursor = start;
+  let count = 0;
+  let guard = 0;
+  while (cursor <= end && guard < 600) {
+    count += 1;
+    cursor = advanceDate(cursor, frequency);
+    guard += 1;
+  }
+  return count;
+}
+
 function monthlyAmount(amount, frequency) {
   if (frequency === "weekly") {
     return (amount * 52) / 12;
@@ -1526,6 +1669,10 @@ function parseAmount(value) {
   const normalized = String(value || "").trim().replace(",", ".");
   const numeric = Number.parseFloat(normalized);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function roundUpCurrency(value) {
+  return Math.ceil((value || 0) * 100) / 100;
 }
 
 function parseDate(value) {

@@ -341,6 +341,65 @@ textarea {
   padding: 0 28px 28px;
 }
 
+.planner-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.8fr);
+  gap: 18px;
+  padding: 0 28px 28px;
+}
+
+.planner-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding-top: 6px;
+}
+
+.planner-card {
+  background: linear-gradient(160deg, rgba(21, 94, 99, 0.1), rgba(255, 255, 255, 0.8));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+}
+
+.planner-card strong {
+  display: block;
+  margin-top: 10px;
+  font-size: clamp(1.8rem, 3.2vw, 2.5rem);
+  font-family: var(--font-display);
+}
+
+.planner-stats {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.planner-stat {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(19, 35, 29, 0.08);
+}
+
+.planner-stat span {
+  display: block;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.planner-stat strong {
+  margin-top: 8px;
+  font-size: 1.15rem;
+  font-family: var(--font-body);
+}
+
+.planner-actions {
+  margin-top: 18px;
+}
+
 .cloud-layout {
   display: grid;
   grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.2fr);
@@ -687,13 +746,15 @@ svg {
   .hero,
   .cloud-layout,
   .projection-layout,
+  .planner-layout,
   .cards-grid,
   .stats-grid,
   .contributors {
     grid-template-columns: 1fr;
   }
 
-  .grid-form {
+  .grid-form,
+  .planner-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -708,7 +769,9 @@ svg {
   .section-head,
   .cloud-layout,
   .grid-form,
+  .planner-layout,
   .stack-form,
+  .planner-form,
   .projection-layout,
   .monthly-card,
   .contributors,
@@ -728,7 +791,8 @@ svg {
   }
 
   .grid-form,
-  .stack-form {
+  .stack-form,
+  .planner-form {
     grid-template-columns: 1fr;
   }
 
