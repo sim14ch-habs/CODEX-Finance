@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     <meta
       name="description"
-      content="Suivi de budget de couple avec paies recurrentes, factures, epargne et projection du solde."
+      content="Suivi de budget de couple avec paies récurrentes, factures, épargne et projection du solde."
     >
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,34 +17,34 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260318-3">
+    <link rel="stylesheet" href="styles.css?v=20260318-4">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-18 / streamlined-projection</p>
-          <h1>Suivez vos finances a deux et voyez ou va votre solde.</h1>
+          <p class="eyebrow">Build 2026-03-18 / accents</p>
+          <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
-            Entrez vos paies, vos factures, vos contributions d'epargne et vos
-            mouvements ponctuels. Le tableau de bord projette ensuite l'evolution
+            Entrez vos paies, vos factures, vos contributions d'épargne et vos
+            mouvements ponctuels. Le tableau de bord projette ensuite l'évolution
             de votre compte sur plusieurs mois.
           </p>
           <div class="hero-actions">
             <button id="loadDemoBtn" class="button secondary" type="button">
-              Charger mes donnees
+              Charger mes données
             </button>
             <button id="resetBtn" class="button ghost" type="button">
-              Reinitialiser les donnees
+              Réinitialiser les données
             </button>
           </div>
         </div>
         <div class="hero-spotlight">
           <div class="spotlight-card">
-            <span class="spotlight-label">Solde projete</span>
+            <span class="spotlight-label">Solde projeté</span>
             <strong id="heroProjected">$0</strong>
-            <p id="heroProjectedCaption">Sur l'horizon selectionne.</p>
+            <p id="heroProjectedCaption">Sur l'horizon sélectionné.</p>
           </div>
           <div class="spotlight-grid">
             <div class="mini-stat">
@@ -56,11 +56,11 @@
               <strong id="heroNextBill">Aucune</strong>
             </div>
             <div class="mini-stat">
-              <span>Epargne mensuelle</span>
+              <span>Épargne mensuelle</span>
               <strong id="heroSavings">$0</strong>
             </div>
             <div class="mini-stat">
-              <span>Cap de securite</span>
+              <span>Cap de sécurité</span>
               <strong id="heroBuffer">-</strong>
             </div>
           </div>
@@ -75,18 +75,18 @@
               <h2>Synchronisation en ligne</h2>
             </div>
             <p id="cloudSummaryText">
-              Activez Supabase pour partager le budget entre vos appareils en temps reel.
+              Activez Supabase pour partager le budget entre vos appareils en temps réel.
             </p>
           </div>
           <div class="cloud-layout">
             <article class="cloud-card">
               <span id="cloudModeBadge" class="cloud-badge">Mode local</span>
-              <strong id="cloudHeadline">Vos donnees restent sur cet appareil.</strong>
+              <strong id="cloudHeadline">Vos données restent sur cet appareil.</strong>
               <p id="cloudDescription">
-                Ajoutez la configuration Supabase pour debloquer la connexion et la synchro en ligne.
+                Ajoutez la configuration Supabase pour débloquer la connexion et la synchro en ligne.
               </p>
               <p id="cloudFootnote" class="cloud-footnote">
-                Tant que le cloud n'est pas configure, le site continue de fonctionner en local.
+                Tant que le cloud n'est pas configuré, le site continue de fonctionner en local.
               </p>
             </article>
 
@@ -112,9 +112,9 @@
               </form>
 
               <section id="cloudHouseholdBox" class="cloud-box" hidden>
-                <h3>Creer ou rejoindre un foyer</h3>
+                <h3>Créer ou rejoindre un foyer</h3>
                 <p>
-                  La premiere personne cree le foyer cloud. L'autre entre ensuite le code
+                  La première personne crée le foyer cloud. L'autre entre ensuite le code
                   d'invitation.
                 </p>
                 <form id="cloudCreateForm" class="cloud-inline-form">
@@ -122,7 +122,7 @@
                     Nom du foyer
                     <input id="cloudHouseholdNameInput" name="householdName" type="text" placeholder="Budget Simon">
                   </label>
-                  <button class="button primary" type="submit">Creer le foyer cloud</button>
+                  <button class="button primary" type="submit">Créer le foyer cloud</button>
                 </form>
                 <form id="cloudJoinForm" class="cloud-inline-form">
                   <label>
@@ -134,9 +134,9 @@
               </section>
 
               <section id="cloudConnectedBox" class="cloud-box" hidden>
-                <h3>Foyer connecte</h3>
+                <h3>Foyer connecté</h3>
                 <p>
-                  Connecte en tant que <strong id="cloudUserEmail">-</strong>
+                  Connecté en tant que <strong id="cloudUserEmail">-</strong>
                 </p>
                 <div class="cloud-detail-grid">
                   <div>
@@ -151,7 +151,7 @@
                 <div class="form-actions">
                   <button id="cloudPullBtn" class="button ghost" type="button">Recharger depuis le cloud</button>
                   <button id="cloudPushBtn" class="button secondary" type="button">Envoyer mon budget local</button>
-                  <button id="cloudSignOutBtn" class="button ghost" type="button">Se deconnecter</button>
+                  <button id="cloudSignOutBtn" class="button ghost" type="button">Se déconnecter</button>
                 </div>
               </section>
             </div>
@@ -162,10 +162,10 @@
           <div class="section-head">
             <div>
               <p class="section-kicker">Base du foyer</p>
-              <h2>Parametres du budget</h2>
+              <h2>Paramètres du budget</h2>
             </div>
             <p>
-              Le solde actuel sert de point de depart a toutes les projections.
+              Le solde actuel sert de point de départ à toutes les projections.
             </p>
           </div>
           <form id="householdForm" class="grid-form">
@@ -222,8 +222,8 @@
               <h2>Projection du compte</h2>
             </div>
             <p>
-              Basee sur les paies recurrentes, les factures, l'epargne et les
-              mouvements ponctuels dates dans le futur.
+              Basée sur les paies récurrentes, les factures, l'épargne et les
+              mouvements ponctuels datés dans le futur.
             </p>
           </div>
           <div class="projection-layout">
@@ -231,7 +231,7 @@
               <div class="chart-header">
                 <div>
                   <h3>Courbe de solde</h3>
-                  <p id="projectionSummary">Ajoutez des donnees pour lancer une projection.</p>
+                  <p id="projectionSummary">Ajoutez des données pour lancer une projection.</p>
                 </div>
                 <span class="chart-chip" id="projectionRangeChip">0 mois</span>
               </div>
@@ -241,10 +241,10 @@
               <div class="insight-card">
                 <span>Variation nette mensuelle</span>
                 <strong id="netMonthlyStat">$0</strong>
-                <p id="netMonthlyCaption">A partir des recurrents.</p>
+                <p id="netMonthlyCaption">À partir des récurrents.</p>
               </div>
               <div class="insight-card">
-                <span>Point bas projete</span>
+                <span>Point bas projeté</span>
                 <strong id="lowestBalanceStat">$0</strong>
                 <p id="lowestBalanceCaption">Aucune alerte pour l'instant.</p>
               </div>
@@ -262,7 +262,7 @@
               <p class="section-kicker">Vue par personne</p>
               <h2>Contribution au budget</h2>
             </div>
-            <p>Resume mensuel pour chaque personne du foyer et les postes partages.</p>
+            <p>Résumé mensuel pour chaque personne du foyer et les postes partagés.</p>
           </div>
           <div class="contributors" id="contributorsGrid"></div>
         </section>
@@ -273,7 +273,7 @@
               <p class="section-kicker">But</p>
               <h2>Planifier un objectif</h2>
             </div>
-            <p>Entrez une cible et une echeance pour estimer le montant a mettre de cote a chaque versement.</p>
+            <p>Entrez une cible et une échéance pour estimer le montant à mettre de côté à chaque versement.</p>
           </div>
           <div class="planner-layout">
             <form id="goalPlannerForm" class="planner-form">
@@ -282,15 +282,15 @@
                 <input name="label" type="text" placeholder="Voyage, auto, coussin commun">
               </label>
               <label>
-                Montant vise
+                Montant visé
                 <input name="targetAmount" type="number" step="0.01" placeholder="5000">
               </label>
               <label>
-                Deja mis de cote
+                Déjà mis de côté
                 <input name="currentAmount" type="number" step="0.01" placeholder="750">
               </label>
               <label>
-                Debut des versements
+                Début des versements
                 <input name="startDate" type="date">
               </label>
               <label>
@@ -298,7 +298,7 @@
                 <input name="targetDate" type="date">
               </label>
               <label>
-                Frequence
+                Fréquence
                 <select name="frequency">
                   <option value="weekly">Chaque semaine</option>
                   <option value="biweekly">Toutes les 2 semaines</option>
@@ -312,9 +312,9 @@
 
             <aside class="planner-card">
               <span class="section-kicker">Estimation</span>
-              <strong id="goalPlannerHeadline">A calculer</strong>
+              <strong id="goalPlannerHeadline">À calculer</strong>
               <p id="goalPlannerSummary">
-                Remplissez le but, l'echeance et la frequence pour voir l'effort a fournir.
+                Remplissez le but, l'échéance et la fréquence pour voir l'effort à fournir.
               </p>
               <div class="planner-stats">
                 <div class="planner-stat">
@@ -326,16 +326,16 @@
                   <strong id="goalPlannerPeriods">-</strong>
                 </div>
                 <div class="planner-stat">
-                  <span>Equivalent mensuel</span>
+                  <span>Équivalent mensuel</span>
                   <strong id="goalPlannerMonthly">-</strong>
                 </div>
               </div>
               <p id="goalPlannerBreakdown" class="helper-text">
-                Le calcul pourra ensuite pre-remplir un objectif d'epargne.
+                Le calcul pourra ensuite pré-remplir un objectif d'épargne.
               </p>
               <div class="planner-actions">
                 <button id="goalPlannerUseBtn" class="button secondary" type="button" disabled>
-                  Utiliser dans l'objectif d'epargne
+                  Utiliser dans l'objectif d'épargne
                 </button>
               </div>
             </aside>
@@ -347,9 +347,9 @@
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Revenus</p>
-                <h2>Paies recurrentes</h2>
+                <h2>Paies récurrentes</h2>
               </div>
-              <p>Saisissez chaque paie et sa prochaine date d'arrivee.</p>
+              <p>Saisissez chaque paie et sa prochaine date d'arrivée.</p>
             </div>
             <form id="paycheckForm" class="stack-form">
               <input name="id" type="hidden">
@@ -358,7 +358,7 @@
                 <select name="owner" class="owner-select"></select>
               </label>
               <label>
-                Libelle
+                Libellé
                 <input name="label" type="text" placeholder="Paie principale">
               </label>
               <label>
@@ -366,7 +366,7 @@
                 <input name="amount" type="number" step="0.01" placeholder="1250">
               </label>
               <label>
-                Frequence
+                Fréquence
                 <select name="frequency">
                   <option value="weekly">Chaque semaine</option>
                   <option value="biweekly">Toutes les 2 semaines</option>
@@ -387,8 +387,8 @@
                 <thead>
                   <tr>
                     <th>Personne</th>
-                    <th>Libelle</th>
-                    <th>Frequence</th>
+                    <th>Libellé</th>
+                    <th>Fréquence</th>
                     <th>Montant</th>
                     <th>Prochaine date</th>
                     <th>Actions</th>
@@ -403,7 +403,7 @@
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Charges</p>
-                <h2>Factures recurrentes</h2>
+                <h2>Factures récurrentes</h2>
               </div>
               <p>Loyer, internet, assurances ou autres sorties fixes.</p>
             </div>
@@ -414,11 +414,11 @@
                 <select name="owner" class="owner-select"></select>
               </label>
               <label>
-                Libelle
+                Libellé
                 <input name="label" type="text" placeholder="Loyer">
               </label>
               <label>
-                Categorie
+                Catégorie
                 <input name="category" type="text" placeholder="Logement">
               </label>
               <label>
@@ -426,7 +426,7 @@
                 <input name="amount" type="number" step="0.01" placeholder="1450">
               </label>
               <label>
-                Frequence
+                Fréquence
                 <select name="frequency">
                   <option value="weekly">Chaque semaine</option>
                   <option value="biweekly">Toutes les 2 semaines</option>
@@ -447,9 +447,9 @@
                 <thead>
                   <tr>
                     <th>Personne</th>
-                    <th>Libelle</th>
-                    <th>Categorie</th>
-                    <th>Frequence</th>
+                    <th>Libellé</th>
+                    <th>Catégorie</th>
+                    <th>Fréquence</th>
                     <th>Montant</th>
                     <th>Prochaine date</th>
                     <th>Actions</th>
@@ -463,15 +463,15 @@
           <section class="panel">
             <div class="section-head tight">
               <div>
-                <p class="section-kicker">Epargne</p>
+                <p class="section-kicker">Épargne</p>
                 <h2>Objectifs et virements</h2>
               </div>
-              <p>Choisissez si chaque objectif est personnel ou commun, sans melanger vos comptes.</p>
+              <p>Choisissez si chaque objectif est personnel ou commun, sans mélanger vos comptes.</p>
             </div>
             <form id="savingsForm" class="stack-form">
               <input name="id" type="hidden">
               <label>
-                Type d'epargne
+                Type d'épargne
                 <select id="savingsScope" name="scope">
                   <option value="personal">Personnelle</option>
                   <option value="shared">Commune</option>
@@ -490,7 +490,7 @@
                 <input name="targetAmount" type="number" step="0.01" placeholder="10000">
               </label>
               <label>
-                Deja mis de cote
+                Déjà mis de côté
                 <input name="currentAmount" type="number" step="0.01" placeholder="2500">
               </label>
               <label>
@@ -498,7 +498,7 @@
                 <input name="contributionAmount" type="number" step="0.01" placeholder="300">
               </label>
               <label>
-                Frequence
+                Fréquence
                 <select name="frequency">
                   <option value="weekly">Chaque semaine</option>
                   <option value="biweekly">Toutes les 2 semaines</option>
@@ -510,7 +510,7 @@
                 <input name="nextDate" type="date">
               </label>
               <p id="savingsScopeHint" class="helper-text form-helper">
-                Choisissez la personne qui possede cette epargne. Les objectifs communs utilisent le type Commune.
+                Choisissez la personne qui possède cette épargne. Les objectifs communs utilisent le type Commune.
               </p>
               <div class="form-actions">
                 <button class="button primary" type="submit">Ajouter / mettre a jour</button>
@@ -541,7 +541,7 @@
                 <p class="section-kicker">Ponctuel</p>
                 <h2>Mouvements uniques</h2>
               </div>
-              <p>Pour les extras, remboursements, depenses uniques ou versements ponctuels.</p>
+              <p>Pour les extras, remboursements, dépenses uniques ou versements ponctuels.</p>
             </div>
             <form id="transactionForm" class="stack-form">
               <input name="id" type="hidden">
@@ -557,12 +557,12 @@
                 Type
                 <select name="type">
                   <option value="income">Revenu</option>
-                  <option value="expense">Depense</option>
-                  <option value="saving">Epargne</option>
+                  <option value="expense">Dépense</option>
+                  <option value="saving">Épargne</option>
                 </select>
               </label>
               <label>
-                Libelle
+                Libellé
                 <input name="label" type="text" placeholder="Remboursement ou achat">
               </label>
               <label>
@@ -585,7 +585,7 @@
                     <th>Date</th>
                     <th>Personne</th>
                     <th>Type</th>
-                    <th>Libelle</th>
+                    <th>Libellé</th>
                     <th>Montant</th>
                     <th>Actions</th>
                   </tr>
@@ -600,10 +600,10 @@
           <div class="section-head">
             <div>
               <p class="section-kicker">Sauvegarde</p>
-              <h2>Import / export des donnees</h2>
+              <h2>Import / export des données</h2>
             </div>
             <p>
-              Pratique pour conserver une sauvegarde ou passer d'un appareil a un autre.
+              Pratique pour conserver une sauvegarde ou passer d'un appareil à un autre.
             </p>
           </div>
           <div class="io-actions helper-text">
@@ -612,7 +612,7 @@
             <input id="importInput" type="file" accept="application/json" hidden>
           </div>
           <p class="helper-text">
-            Les donnees sont stockees localement dans le navigateur via
+            Les données sont stockées localement dans le navigateur via
             <code>localStorage</code>.
           </p>
         </section>
@@ -621,6 +621,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260317-1"></script>
-    <script src="app.js?v=20260318-3"></script>
+    <script src="app.js?v=20260318-4"></script>
   </body>
 </html>

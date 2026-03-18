@@ -55,8 +55,8 @@ const FREQUENCY_LABELS = {
 
 const TYPE_LABELS = {
   income: "Revenu",
-  expense: "Depense",
-  saving: "Epargne",
+  expense: "Dépense",
+  saving: "Épargne",
 };
 
 const CLOUD_SYNC_DELAY_MS = 500;
@@ -72,7 +72,7 @@ const cloudState = {
   channel: null,
   channelHouseholdId: null,
   status: "local",
-  message: "Vos donnees restent sur cet appareil.",
+  message: "Vos données restent sur cet appareil.",
   detail: "Ajoutez la configuration Supabase pour activer la synchro.",
   lastSyncAt: "",
 };
@@ -159,7 +159,7 @@ function bindEvents() {
   });
 
   $("resetBtn").addEventListener("click", () => {
-    if (!window.confirm("Supprimer toutes les donnees locales de ce tableau de bord ?")) {
+    if (!window.confirm("Supprimer toutes les données locales de ce tableau de bord ?")) {
       return;
     }
 
@@ -271,7 +271,7 @@ function readPaycheckForm(formData) {
   const nextDate = textValue(formData.get("nextDate"));
 
   if (!label || !amount || !nextDate) {
-    window.alert("Merci de remplir le libelle, le montant et la prochaine date.");
+    window.alert("Merci de remplir le libellé, le montant et la prochaine date.");
     return null;
   }
 
@@ -291,7 +291,7 @@ function readBillForm(formData) {
   const nextDate = textValue(formData.get("nextDate"));
 
   if (!label || !amount || !nextDate) {
-    window.alert("Merci de remplir le libelle, le montant et la prochaine date.");
+    window.alert("Merci de remplir le libellé, le montant et la prochaine date.");
     return null;
   }
 
@@ -313,7 +313,7 @@ function readSavingsForm(formData) {
   const scope = readSavingsScope(formData);
 
   if (!label) {
-    window.alert("Merci de donner un nom a votre objectif d'epargne.");
+    window.alert("Merci de donner un nom à votre objectif d'épargne.");
     return null;
   }
 
@@ -341,7 +341,7 @@ function readTransactionForm(formData) {
   const date = textValue(formData.get("date"));
 
   if (!label || !amount || !date) {
-    window.alert("Merci de remplir la date, le libelle et le montant.");
+    window.alert("Merci de remplir la date, le libellé et le montant.");
     return null;
   }
 
@@ -388,7 +388,7 @@ async function initCloud() {
   if (!cloudState.config) {
     setCloudStatus(
       "local",
-      "Vos donnees restent sur cet appareil.",
+      "Vos données restent sur cet appareil.",
       "Ajoutez la configuration Supabase pour activer la synchro."
     );
     renderAll();
@@ -470,8 +470,8 @@ async function refreshCloudContext() {
       await closeCloudSubscription();
       setCloudStatus(
         "auth",
-        `Connecte comme ${cloudState.user.email || "utilisateur"}.`,
-        "Creez votre foyer cloud ou rejoignez celui de votre conjointe avec le code d'invitation."
+        `Connecté comme ${cloudState.user.email || "utilisateur"}.`,
+        "Créez votre foyer cloud ou rejoignez celui de votre conjointe avec le code d'invitation."
       );
       renderAll();
       return;
@@ -479,8 +479,8 @@ async function refreshCloudContext() {
 
     setCloudStatus(
       "syncing",
-      `Foyer ${household.household_name} connecte.`,
-      "Lecture des donnees cloud..."
+      `Foyer ${household.household_name} connecté.`,
+      "Lecture des données cloud..."
     );
     renderAll();
     await subscribeToBudgetChanges(household.household_id);
@@ -541,7 +541,7 @@ async function handleCloudAuthSubmit(event) {
   setCloudStatus(
     "auth",
     "Lien magique envoye.",
-    `Ouvrez l'email envoye a ${email} sur votre appareil pour terminer la connexion.`
+    `Ouvrez l'email envoyé à ${email} sur votre appareil pour terminer la connexion.`
   );
   renderAll();
 }
@@ -581,11 +581,11 @@ async function handleJoinHouseholdSubmit(event) {
 
   const inviteCode = textValue(new FormData(event.currentTarget).get("inviteCode")).toLowerCase();
   if (!inviteCode) {
-    window.alert("Ajoutez le code d'invitation recu.");
+    window.alert("Ajoutez le code d'invitation reçu.");
     return;
   }
 
-  setCloudStatus("syncing", "Connexion au foyer cloud...", "Import des donnees partagees en cours.");
+  setCloudStatus("syncing", "Connexion au foyer cloud...", "Import des données partagées en cours.");
   renderAll();
 
   const { error } = await cloudState.client.rpc("join_household", {
@@ -616,7 +616,7 @@ async function signOutFromCloud() {
   setCloudStatus(
     "auth",
     "Connexion cloud terminee.",
-    "Vos donnees locales restent disponibles sur cet appareil."
+    "Vos données locales restent disponibles sur cet appareil."
   );
   renderAll();
 }
@@ -689,8 +689,8 @@ async function subscribeToBudgetChanges(householdId) {
         persistState({ skipCloud: true });
         setCloudStatus(
           "connected",
-          `Foyer ${cloudState.household.household_name} synchronise.`,
-          "Une mise a jour distante vient d'etre appliquee."
+          `Foyer ${cloudState.household.household_name} synchronisé.`,
+          "Une mise à jour distante vient d'être appliquée."
         );
         renderAll();
       }
@@ -773,8 +773,8 @@ async function saveBudgetToCloud(forceSync) {
   cloudState.lastSyncAt = data.updated_at || new Date().toISOString();
   setCloudStatus(
     "connected",
-    `Foyer ${cloudState.household.household_name} synchronise.`,
-    "Les changements sont maintenant partages avec les autres appareils connectes."
+    `Foyer ${cloudState.household.household_name} synchronisé.`,
+    "Les changements sont maintenant partagés avec les autres appareils connectés."
   );
   renderAll();
 }
@@ -786,8 +786,8 @@ function applyRemoteBudget(nextBudget, updatedAt) {
   persistState({ skipCloud: true });
   setCloudStatus(
     "connected",
-    `Foyer ${cloudState.household.household_name} synchronise.`,
-    "Le budget affiche provient du cloud partage."
+    `Foyer ${cloudState.household.household_name} synchronisé.`,
+    "Le budget affiché provient du cloud partagé."
   );
   renderAll();
 }
@@ -819,11 +819,11 @@ function renderCloudPanel() {
   $("cloudHeadline").textContent = cloudState.message;
   $("cloudDescription").textContent = cloudState.detail;
   $("cloudSummaryText").textContent = configured
-    ? "Le budget peut etre partage et synchronise entre vos appareils."
-    : "Activez Supabase pour partager le budget entre vos appareils en temps reel.";
+    ? "Le budget peut être partagé et synchronisé entre vos appareils."
+    : "Activez Supabase pour partager le budget entre vos appareils en temps réel.";
   $("cloudFootnote").textContent = cloudState.lastSyncAt
-    ? `Derniere synchro: ${formatCloudDateTime(cloudState.lastSyncAt)}`
-    : "Le budget local reste disponible meme sans cloud.";
+    ? `Dernière synchro: ${formatCloudDateTime(cloudState.lastSyncAt)}`
+    : "Le budget local reste disponible même sans cloud.";
 
   $("cloudConfigBox").hidden = configured;
   $("cloudAuthForm").hidden = !configured || connected;
@@ -835,7 +835,7 @@ function renderCloudPanel() {
   }
 
   if (configured && connected) {
-    $("cloudUserEmail").textContent = cloudState.user.email || "Connecte";
+    $("cloudUserEmail").textContent = cloudState.user.email || "Connecté";
   }
 
   if (configured && linkedHousehold) {
@@ -939,7 +939,7 @@ function updateSavingsFormOwnership() {
     renderSelectOptions(ownerField, getOwnerOptions(true).filter((option) => option.value === getSharedOwnerValue()));
     ownerField.disabled = true;
     if (hint) {
-      hint.textContent = "Cette epargne sera visible comme un compte commun, distinct de vos comptes personnels.";
+      hint.textContent = "Cette épargne sera visible comme un compte commun, distinct de vos comptes personnels.";
     }
     return;
   }
@@ -952,7 +952,7 @@ function updateSavingsFormOwnership() {
   }
 
   if (hint) {
-    hint.textContent = "Choisissez la personne qui possede cette epargne. Les objectifs communs utilisent le type Commune.";
+    hint.textContent = "Choisissez la personne qui possède cette épargne. Les objectifs communs utilisent le type Commune.";
   }
 }
 
@@ -972,14 +972,14 @@ function renderGoalPlanner() {
   const useButton = $("goalPlannerUseBtn");
 
   if (!result) {
-    $("goalPlannerHeadline").textContent = "A calculer";
+    $("goalPlannerHeadline").textContent = "À calculer";
     $("goalPlannerSummary").textContent =
-      "Remplissez le but, l'echeance et la frequence pour voir l'effort a fournir.";
+      "Remplissez le but, l'échéance et la fréquence pour voir l'effort à fournir.";
     $("goalPlannerRemaining").textContent = "-";
     $("goalPlannerPeriods").textContent = "-";
     $("goalPlannerMonthly").textContent = "-";
     $("goalPlannerBreakdown").textContent =
-      "Le calcul pourra ensuite pre-remplir un objectif d'epargne.";
+      "Le calcul pourra ensuite pré-remplir un objectif d'épargne.";
     useButton.disabled = true;
     return;
   }
@@ -988,18 +988,18 @@ function renderGoalPlanner() {
   $("goalPlannerHeadline").textContent =
     result.remainingAmount > 0
       ? `${formatCurrency(result.contributionAmount)} / ${frequencyLabel.toLowerCase()}`
-      : "Objectif deja finance";
+      : "Objectif déjà financé";
   $("goalPlannerSummary").textContent =
     result.remainingAmount > 0
       ? `${result.periods} ${result.periods > 1 ? "versements" : "versement"} du ${formatDate(result.startDate)} au ${formatDate(result.targetDate)}.`
-      : `${result.label} atteint deja la cible indiquee avec le montant actuel.`;
+      : `${result.label} atteint déjà la cible indiquée avec le montant actuel.`;
   $("goalPlannerRemaining").textContent = formatCurrency(result.remainingAmount);
   $("goalPlannerPeriods").textContent = String(result.periods);
   $("goalPlannerMonthly").textContent = formatCurrency(result.monthlyEquivalent);
   $("goalPlannerBreakdown").textContent =
     result.remainingAmount > 0
-      ? `${result.label} : cible ${formatCurrency(result.targetAmount)}, deja ${formatCurrency(result.currentAmount)}.`
-      : `Tu peux quand meme reutiliser ce but pour garder une trace dans la section epargne.`;
+      ? `${result.label} : cible ${formatCurrency(result.targetAmount)}, déjà ${formatCurrency(result.currentAmount)}.`
+      : `Tu peux quand même réutiliser ce but pour garder une trace dans la section épargne.`;
   useButton.disabled = false;
 }
 
@@ -1026,23 +1026,23 @@ function renderStats() {
     {
       label: "Solde actuel",
       value: formatCurrency(state.household.currentBalance),
-      note: "Point de depart du compte.",
+      note: "Point de départ du compte.",
       tone: state.household.currentBalance < 0 ? "negative" : "positive",
     },
     {
       label: "Revenus mensuels",
       value: formatCurrency(metrics.monthlyIncome),
-      note: "Moyenne de vos paies recurrentes.",
+      note: "Moyenne de vos paies récurrentes.",
       tone: "positive",
     },
     {
       label: "Factures mensuelles",
       value: formatCurrency(metrics.monthlyBills),
-      note: "Sorties fixes estimees.",
+      note: "Sorties fixes estimées.",
       tone: metrics.monthlyBills > 0 ? "negative" : "",
     },
     {
-      label: "Epargne mensuelle",
+      label: "Épargne mensuelle",
       value: formatCurrency(metrics.monthlySavings),
       note: `Perso ${formatCurrency(metrics.monthlyPersonalSavings)} • Commune ${formatCurrency(metrics.monthlySharedSavings)}.`,
       tone: "",
@@ -1083,7 +1083,7 @@ function renderTables() {
 function renderTable(targetId, rows, colSpan, renderer) {
   const target = $(targetId);
   if (!rows.length) {
-    target.innerHTML = `<tr><td colspan="${colSpan}" class="empty-state">Aucune donnee pour le moment.</td></tr>`;
+    target.innerHTML = `<tr><td colspan="${colSpan}" class="empty-state">Aucune donnée pour le moment.</td></tr>`;
     return;
   }
 
@@ -1234,18 +1234,18 @@ function renderProjection() {
   $("heroNextBill").textContent = nextBill ? formatDate(nextBill.date) : "Aucune";
   $("netMonthlyStat").textContent = formatCurrency(metrics.monthlyNet);
   $("netMonthlyCaption").textContent =
-    metrics.monthlyNet >= 0 ? "Les recurrents vont dans le bon sens." : "Le rythme doit etre ajuste.";
+    metrics.monthlyNet >= 0 ? "Les récurrents vont dans le bon sens." : "Le rythme doit être ajusté.";
   $("lowestBalanceStat").textContent = lowestPoint
     ? formatCurrency(lowestPoint.balance)
     : formatCurrency(state.household.currentBalance);
   $("lowestBalanceCaption").textContent = lowestPoint
     ? lowestPoint.balance < 0
-      ? `Passage sous zero le ${formatDate(lowestPoint.date)}.`
+      ? `Passage sous zéro le ${formatDate(lowestPoint.date)}.`
       : `Creux attendu le ${formatDate(lowestPoint.date)}.`
     : "Aucune alerte pour l'instant.";
   $("projectionSummary").textContent = lastPoint
-    ? `De ${formatCurrency(state.household.currentBalance)} a ${formatCurrency(lastPoint.balance)} sur l'horizon choisi.`
-    : "Ajoutez des donnees pour lancer une projection.";
+    ? `De ${formatCurrency(state.household.currentBalance)} à ${formatCurrency(lastPoint.balance)} sur l'horizon choisi.`
+    : "Ajoutez des données pour lancer une projection.";
 
   $("upcomingList").innerHTML = futureEvents.length
     ? futureEvents
@@ -1262,7 +1262,7 @@ function renderProjection() {
           `
         )
         .join("")
-    : "<li><div><strong>Aucun mouvement a venir</strong><small>Ajoutez des paies, factures ou virements.</small></div></li>";
+    : "<li><div><strong>Aucun mouvement à venir</strong><small>Ajoutez des paies, factures ou virements.</small></div></li>";
 
   drawProjectionChart(projection.points, state.household.safetyBuffer);
 }
@@ -1278,7 +1278,7 @@ function renderContributors() {
           <div class="badge-row">
             <span class="badge">Revenus ${escapeHtml(formatCurrency(card.income))}</span>
             <span class="badge">Factures ${escapeHtml(formatCurrency(card.bills))}</span>
-            <span class="badge">Epargne ${escapeHtml(formatCurrency(card.savings))}</span>
+            <span class="badge">Épargne ${escapeHtml(formatCurrency(card.savings))}</span>
           </div>
         </article>
       `
@@ -1333,7 +1333,7 @@ function computeOwnerMetrics() {
       bills,
       savings,
       net: income - bills - savings,
-      note: shared ? "Vue du compte commun et des objectifs partages." : "Net mensuel estime.",
+      note: shared ? "Vue du compte commun et des objectifs partagés." : "Net mensuel estimé.",
     };
   });
 }
@@ -1521,7 +1521,7 @@ function buildGoalPlannerResult(formData) {
   const frequency = textValue(formData.get("frequency")) || "monthly";
 
   if (!targetAmount || !startDate || !targetDate) {
-    window.alert("Ajoutez au minimum le montant vise, la date de debut et la date cible.");
+    window.alert("Ajoutez au minimum le montant visé, la date de début et la date cible.");
     return null;
   }
 
@@ -1533,7 +1533,7 @@ function buildGoalPlannerResult(formData) {
   }
 
   if (end < start) {
-    window.alert("La date cible doit etre egale ou posterieure au debut des versements.");
+    window.alert("La date cible doit être égale ou postérieure au début des versements.");
     return null;
   }
 
