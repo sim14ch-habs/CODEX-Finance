@@ -491,6 +491,8 @@ textarea {
 }
 
 .calendar-day {
+  display: flex;
+  flex-direction: column;
   min-height: 160px;
   padding: 12px;
   border-radius: var(--radius-md);
@@ -518,6 +520,7 @@ textarea {
 .calendar-day-events {
   display: grid;
   gap: 8px;
+  flex: 1 1 auto;
 }
 
 .calendar-event {
@@ -566,6 +569,26 @@ textarea {
 .calendar-more {
   margin: 0;
   font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.calendar-day-total {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(19, 35, 29, 0.08);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.calendar-day-total.positive {
+  color: var(--success);
+}
+
+.calendar-day-total.negative {
+  color: var(--danger);
+}
+
+.calendar-day-total.neutral {
   color: var(--muted);
 }
 
@@ -687,6 +710,10 @@ textarea {
   margin: 10px 0 0;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.cloud-helper {
+  margin-top: 14px;
 }
 
 .cloud-badge {

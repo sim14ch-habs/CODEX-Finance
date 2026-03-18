@@ -1,4 +1,5 @@
 const STORAGE_KEY = "budget-duo-v2";
+const LOCAL_BACKUP_STORAGE_KEY = "budget-duo-v2-local-backup";
 const ACCOUNT_IDS = {
   partnerOne: "account_partner_one",
   partnerTwo: "account_partner_two",
@@ -9,7 +10,7 @@ const DEFAULT_STATE = {
   household: {
     householdName: "Budget Simon",
     partnerOne: "Simon",
-    partnerTwo: "Ma conjointe",
+    partnerTwo: "Geneviève",
     currency: "CAD",
     currentBalance: 998,
     projectionMonths: 6,
@@ -24,7 +25,7 @@ const DEFAULT_STATE = {
     },
     {
       id: ACCOUNT_IDS.partnerTwo,
-      owner: "Ma conjointe",
+      owner: "Geneviève",
       kind: "personal",
       balance: 0,
     },
@@ -327,6 +328,7 @@ function bindEvents() {
   $("cloudPushBtn").addEventListener("click", () => {
     void saveBudgetToCloud(true);
   });
+  $("cloudRestoreLocalBtn").addEventListener("click", restoreLocalBackup);
   $("cloudSignOutBtn").addEventListener("click", () => {
     void signOutFromCloud();
   });
@@ -359,19 +361,19 @@ function saveHousehold(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const previousPartnerOne = state.household.partnerOne || "Moi";
-  const previousPartnerTwo = state.household.partnerTwo || "Ma conjointe";
+  const previousPartnerTwo = state.household.partnerTwo || "Geneviève";
   const previousSharedOwner = getSharedOwnerValue();
   state.household = {
     householdName: textValue(formData.get("householdName")) || "Budget du foyer",
     partnerOne: textValue(formData.get("partnerOne")) || "Moi",
-    partnerTwo: textValue(formData.get("partnerTwo")) || "Ma conjointe",
+    partnerTwo: textValue(formData.get("partnerTwo")) || "Geneviève",
     currency: textValue(formData.get("currency")) || "CAD",
     currentBalance: 0,
     projectionMonths: parseInt(formData.get("projectionMonths"), 10) || 6,
     safetyBuffer: parseAmount(formData.get("safetyBuffer")),
   };
   const nextPartnerOne = state.household.partnerOne || "Moi";
-  const nextPartnerTwo = state.household.partnerTwo || "Ma conjointe";
+  const nextPartnerTwo = state.household.partnerTwo || "Geneviève";
   const nextSharedOwner = getSharedOwnerValue();
   const renameOwner = (owner) => {
     if (owner === previousPartnerOne) {
@@ -927,15 +929,7 @@ async function subscribeToBudgetChanges(householdId) {
           return;
         }
 
-        state = nextBudget;
-        cloudState.lastSerializedBudget = nextSerialized;
-        persistState({ skipCloud: true });
-        setCloudStatus(
-          "connected",
-          `Foyer ${cloudState.household.household_name} synchronisé.`,
-          "Une mise à jour distante vient d'être appliquée."
-        );
-        renderAll();
+        applyRemoteBudget(nextRecord.budget_state, nextRecord.updated_at);
       }
     )
     .subscribe();
@@ -1023,14 +1017,20 @@ async function saveBudgetToCloud(forceSync) {
 }
 
 function applyRemoteBudget(nextBudget, updatedAt) {
-  state = sanitizeState(nextBudget);
-  cloudState.lastSerializedBudget = JSON.stringify(state);
+  const nextState = sanitizeState(nextBudget);
+  const nextSerialized = JSON.stringify(nextState);
+  const localBackupSaved = saveLocalBackupBeforeCloudOverwrite(nextSerialized);
+
+  state = nextState;
+  cloudState.lastSerializedBudget = nextSerialized;
   cloudState.lastSyncAt = updatedAt || new Date().toISOString();
   persistState({ skipCloud: true });
   setCloudStatus(
     "connected",
     `Foyer ${cloudState.household.household_name} synchronisé.`,
-    "Le budget affiché provient du cloud partagé."
+    localBackupSaved
+      ? "Le budget affiché provient du cloud partagé. Une copie locale de secours a été conservée."
+      : "Le budget affiché provient du cloud partagé."
   );
   renderAll();
 }
@@ -1039,6 +1039,7 @@ function renderCloudPanel() {
   const configured = Boolean(cloudState.config);
   const connected = Boolean(cloudState.user);
   const linkedHousehold = Boolean(cloudState.household);
+  const localBackup = readLocalBackup();
   const badge = $("cloudModeBadge");
 
   badge.className = "cloud-badge";
@@ -1072,6 +1073,7 @@ function renderCloudPanel() {
   $("cloudAuthForm").hidden = !configured || connected;
   $("cloudHouseholdBox").hidden = !configured || !connected || linkedHousehold;
   $("cloudConnectedBox").hidden = !configured || !connected || !linkedHousehold;
+  $("cloudRecoveryBox").hidden = !configured;
 
   if ($("cloudHouseholdNameInput") && !$("cloudHouseholdNameInput").value) {
     $("cloudHouseholdNameInput").value = state.household.householdName || "Budget du foyer";
@@ -1085,6 +1087,11 @@ function renderCloudPanel() {
     $("cloudHouseholdName").textContent = cloudState.household.household_name;
     $("cloudInviteCode").textContent = cloudState.household.invite_code;
   }
+
+  $("cloudBackupInfo").textContent = localBackup
+    ? `Dernière copie locale: ${formatCloudDateTime(localBackup.savedAt)}.${localBackup.reason ? ` ${localBackup.reason}` : ""}`
+    : "Aucune copie locale de secours enregistrée pour le moment.";
+  $("cloudRestoreLocalBtn").disabled = !localBackup;
 }
 
 function formatCloudDateTime(value) {
@@ -1098,6 +1105,67 @@ function formatCloudDateTime(value) {
         hour: "2-digit",
         minute: "2-digit",
       });
+}
+
+function saveLocalBackupBeforeCloudOverwrite(nextSerialized) {
+  const currentSerialized = JSON.stringify(state);
+  if (currentSerialized === nextSerialized) {
+    return false;
+  }
+  if (cloudState.lastSerializedBudget && currentSerialized === cloudState.lastSerializedBudget) {
+    return false;
+  }
+
+  writeLocalBackup({
+    savedAt: new Date().toISOString(),
+    reason: "Copie enregistrée juste avant un rechargement depuis le cloud.",
+    budgetState: state,
+  });
+  return true;
+}
+
+function writeLocalBackup(snapshot) {
+  try {
+    window.localStorage.setItem(LOCAL_BACKUP_STORAGE_KEY, JSON.stringify(snapshot));
+  } catch (error) {
+    console.error("Sauvegarde locale de secours impossible:", error);
+  }
+}
+
+function readLocalBackup() {
+  try {
+    const raw = window.localStorage.getItem(LOCAL_BACKUP_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const snapshot = JSON.parse(raw);
+    if (!snapshot || !snapshot.budgetState) {
+      return null;
+    }
+    return snapshot;
+  } catch (error) {
+    console.error("Lecture de la sauvegarde locale impossible:", error);
+    return null;
+  }
+}
+
+function restoreLocalBackup() {
+  const snapshot = readLocalBackup();
+  if (!snapshot || !snapshot.budgetState) {
+    window.alert("Aucune copie locale de secours n'est disponible sur cet appareil.");
+    return;
+  }
+
+  state = sanitizeState(snapshot.budgetState);
+  persistState({ skipCloud: true });
+  setCloudStatus(
+    cloudState.household ? "connected" : "local",
+    cloudState.household
+      ? `Copie locale restaurée pour ${cloudState.household.household_name}.`
+      : "Copie locale restaurée sur cet appareil.",
+    "La version locale a été restaurée sans écraser le cloud. Vérifie-la puis utilise Envoyer mon budget local si nécessaire."
+  );
+  renderAll();
 }
 
 function renderAll() {
@@ -1172,7 +1240,7 @@ function seedFormDefaults() {
 
 function renderBalanceLabels() {
   const partnerOne = state.household.partnerOne || "Moi";
-  const partnerTwo = state.household.partnerTwo || "Ma conjointe";
+  const partnerTwo = state.household.partnerTwo || "Geneviève";
   $("partnerOneBalanceLabel").textContent = `Solde de ${partnerOne}`;
   $("partnerTwoBalanceLabel").textContent = `Solde de ${partnerTwo}`;
   $("sharedBalanceLabel").textContent = "Solde du compte commun";
@@ -1761,6 +1829,9 @@ function renderCalendar() {
     const key = formatInputDate(cursor);
     const dayEvents = eventsByDate.get(key) || [];
     const extraCount = Math.max(dayEvents.length - 3, 0);
+    const dayTotal = sumBy(dayEvents, getCalendarDayDelta);
+    const showDayTotal = dayEvents.some((event) => event.kind !== "transfer");
+    const dayTotalTone = dayTotal > 0 ? "positive" : dayTotal < 0 ? "negative" : "neutral";
     days.push(`
       <article class="calendar-day${sameCalendarMonth(cursor, monthStart) ? "" : " is-muted"}${isSameDay(cursor, new Date()) ? " is-today" : ""}">
         <div class="calendar-day-head">
@@ -1770,6 +1841,7 @@ function renderCalendar() {
           ${dayEvents.slice(0, 3).map(renderCalendarEvent).join("")}
           ${extraCount ? `<p class="calendar-more">+ ${extraCount} autre${extraCount > 1 ? "s" : ""}</p>` : ""}
         </div>
+        ${showDayTotal ? `<p class="calendar-day-total ${dayTotalTone}">Total du jour ${escapeHtml(formatSignedCurrency(dayTotal))}</p>` : ""}
       </article>
     `);
     cursor = addDays(cursor, 1);
@@ -1841,6 +1913,10 @@ function renderCalendarEvent(event) {
       <span>${escapeHtml(amountLabel)}</span>
     </div>
   `;
+}
+
+function getCalendarDayDelta(event) {
+  return event.kind === "transfer" ? 0 : event.delta || 0;
 }
 
 function renderContributors() {
@@ -2511,7 +2587,7 @@ function createAccountsForHousehold(household, legacyCurrentBalance = 0) {
     },
     {
       id: ACCOUNT_IDS.partnerTwo,
-      owner: household.partnerTwo || "Ma conjointe",
+      owner: household.partnerTwo || "Geneviève",
       kind: "personal",
       balance: 0,
     },
@@ -2572,7 +2648,7 @@ function syncCurrentBalance() {
 }
 
 function getPersonOwners() {
-  return [state.household.partnerOne || "Moi", state.household.partnerTwo || "Ma conjointe"].filter(
+  return [state.household.partnerOne || "Moi", state.household.partnerTwo || "Geneviève"].filter(
     (value, index, array) => value && array.indexOf(value) === index
   );
 }

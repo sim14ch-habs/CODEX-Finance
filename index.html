@@ -17,7 +17,7 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260318-8">
+    <link rel="stylesheet" href="styles.css?v=20260318-11">
   </head>
   <body>
     <div class="page-shell">
@@ -161,6 +161,20 @@
                   <button id="cloudSignOutBtn" class="button ghost" type="button">Se déconnecter</button>
                 </div>
               </section>
+
+              <section id="cloudRecoveryBox" class="cloud-box" hidden>
+                <h3>Protection locale</h3>
+                <p id="cloudBackupInfo">Aucune copie locale de secours enregistrée pour le moment.</p>
+                <div class="form-actions">
+                  <button id="cloudRestoreLocalBtn" class="button ghost" type="button" disabled>
+                    Restaurer ma copie locale
+                  </button>
+                </div>
+                <p class="helper-text cloud-helper">
+                  La restauration remet la dernière copie locale sur cet appareil sans écraser le cloud. Vérifie ensuite,
+                  puis utilise <strong>Envoyer mon budget local</strong> si c'est la bonne version.
+                </p>
+              </section>
             </div>
           </div>
         </section>
@@ -186,7 +200,7 @@
             </label>
             <label>
               Personne 2
-              <input name="partnerTwo" type="text" placeholder="Ma conjointe">
+              <input name="partnerTwo" type="text" placeholder="Geneviève">
             </label>
             <label>
               Devise
@@ -753,6 +767,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260317-1"></script>
-    <script src="app.js?v=20260318-7"></script>
+    <script src="app.js?v=20260318-11"></script>
   </body>
 </html>
