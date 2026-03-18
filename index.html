@@ -18,14 +18,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260318-17">
+    <link rel="stylesheet" href="styles.css?v=20260318-19">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-18 / splitwise-base-support</p>
+          <p class="eyebrow">Build 2026-03-18 / next-bill-summary</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -61,10 +61,11 @@
               <span>Prochaine paie</span>
               <strong id="heroNextIncome">Aucune</strong>
             </div>
-            <div class="mini-stat">
-              <span>Prochaine facture</span>
-              <strong id="heroNextBill">Aucune</strong>
-            </div>
+             <div class="mini-stat">
+               <span>Prochaine facture</span>
+               <strong id="heroNextBill">Aucune</strong>
+               <p id="heroNextBillCaption">Aucune facture récurrente à venir.</p>
+             </div>
             <div class="mini-stat">
               <span>Épargne mensuelle</span>
               <strong id="heroSavings">$0</strong>
@@ -589,6 +590,10 @@
               <button id="mergeSimonBillsBtn" class="button ghost" type="button">Ajouter mes dépenses Simon</button>
             </div>
             <p class="helper-text form-helper">Ajoute seulement les factures Simon manquantes, sans doublons.</p>
+            <div id="billsTableTools" class="table-tools" hidden>
+              <p id="billsTableSummary" class="helper-text table-summary"></p>
+              <button id="billsTableToggle" class="button ghost" type="button" hidden>Voir toutes les factures</button>
+            </div>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -729,6 +734,10 @@
             <p class="helper-text form-helper">
               Exemple: si Simon paie 150 $ avec 50 % à rembourser, Geneviève lui devra 75 $.
             </p>
+            <div id="sharedExpensesTableTools" class="table-tools" hidden>
+              <p id="sharedExpensesTableSummary" class="helper-text table-summary"></p>
+              <button id="sharedExpensesTableToggle" class="button ghost" type="button" hidden>Voir toutes les dépenses partagées</button>
+            </div>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -846,6 +855,10 @@
                 <button class="button ghost form-reset" data-form="transactionForm" type="button">Vider</button>
               </div>
             </form>
+            <div id="transactionsTableTools" class="table-tools" hidden>
+              <p id="transactionsTableSummary" class="helper-text table-summary"></p>
+              <button id="transactionsTableToggle" class="button ghost" type="button" hidden>Voir tous les mouvements</button>
+            </div>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -889,7 +902,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260317-1"></script>
-    <script src="app.js?v=20260318-17"></script>
+    <script src="app.js?v=20260318-19"></script>
   </body>
 </html>
 

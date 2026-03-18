@@ -276,6 +276,13 @@ textarea {
   font-size: 1.05rem;
 }
 
+.mini-stat p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
 .layout {
   display: grid;
   gap: 20px;
@@ -1025,12 +1032,24 @@ textarea {
 }
 
 .shared-debt-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .table-wrap {
   padding: 0 28px 28px;
   overflow-x: auto;
+}
+
+.table-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 28px 12px;
+}
+
+.table-summary {
+  margin: 0;
 }
 
 table {
@@ -1199,10 +1218,16 @@ svg {
   .contributors,
   .alerts-grid,
   .calendar-grid,
+  .table-tools,
   .table-wrap,
   .helper-text {
     padding-left: 18px;
     padding-right: 18px;
+  }
+
+  .table-tools {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .hero {

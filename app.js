@@ -22,6 +22,7 @@ const ACCOUNT_STATUS_LABELS = {
 };
 const ACTIVITY_LOG_LIMIT = 60;
 const UNDO_STACK_LIMIT = 20;
+const COMPACT_TABLE_LIMIT = 5;
 
 const DEFAULT_STATE = {
   household: {
@@ -244,6 +245,12 @@ const goalPlannerState = {
   result: null,
 };
 
+const compactTableState = {
+  bills: false,
+  sharedExpenses: false,
+  transactions: false,
+};
+
 const calendarUiState = {
   monthCursor: startOfMonth(new Date()),
 };
@@ -387,6 +394,7 @@ function bindEvents() {
   $("importInput").addEventListener("change", importState);
   document.addEventListener("click", handleTableActions);
   document.addEventListener("click", handleQuickActionClicks);
+  document.addEventListener("click", handleCompactTableToggle);
 
   $("cloudAuthForm").addEventListener("submit", handleCloudAuthSubmit);
   $("cloudCreateForm").addEventListener("submit", handleCreateHouseholdSubmit);
@@ -2111,7 +2119,7 @@ function renderStats() {
       tone: alerts.length ? "negative" : "positive",
     },
     {
-      label: "Entre vous",
+      label: "Solde net entre vous",
       value: formatCurrency(Math.abs(debtSummary.net)),
       note:
         debtSummary.net > 0
@@ -2143,11 +2151,53 @@ function renderStats() {
 
 function renderTables() {
   renderTable("paychecksTable", state.paychecks, 6, renderPaycheckRow);
-  renderTable("billsTable", state.bills, 7, renderBillRow);
+  renderCompactTable({
+    key: "bills",
+    rows: state.bills,
+    targetId: "billsTable",
+    colSpan: 7,
+    renderer: renderBillRow,
+    toolsId: "billsTableTools",
+    summaryId: "billsTableSummary",
+    toggleId: "billsTableToggle",
+    emptySummary: "Aucune facture récurrente pour le moment.",
+    collapsedSummary: (visible, total) => `${visible} facture${visible > 1 ? "s" : ""} sur ${total} affichée${visible > 1 ? "s" : ""}.`,
+    expandedSummary: (total) => `${total} facture${total > 1 ? "s" : ""} récurrente${total > 1 ? "s" : ""} affichée${total > 1 ? "s" : ""}.`,
+    expandLabel: "Voir toutes les factures",
+    collapseLabel: "Réduire la liste",
+  });
   renderTable("savingsTable", state.savingsGoals, 7, renderSavingsRow);
-  renderTable("sharedExpensesTable", state.sharedExpenses.slice().sort(sortByDateDesc), 7, renderSharedExpenseRow);
+  renderCompactTable({
+    key: "sharedExpenses",
+    rows: state.sharedExpenses.slice().sort(sortByDateDesc),
+    targetId: "sharedExpensesTable",
+    colSpan: 7,
+    renderer: renderSharedExpenseRow,
+    toolsId: "sharedExpensesTableTools",
+    summaryId: "sharedExpensesTableSummary",
+    toggleId: "sharedExpensesTableToggle",
+    emptySummary: "Aucune dépense partagée pour le moment.",
+    collapsedSummary: (visible, total) => `${visible} dépense${visible > 1 ? "s" : ""} partagée${visible > 1 ? "s" : ""} sur ${total} affichée${visible > 1 ? "s" : ""}.`,
+    expandedSummary: (total) => `${total} dépense${total > 1 ? "s" : ""} partagée${total > 1 ? "s" : ""} affichée${total > 1 ? "s" : ""}.`,
+    expandLabel: "Voir toutes les dépenses partagées",
+    collapseLabel: "Réduire la liste",
+  });
   renderTable("transfersTable", state.transfers.slice().sort(sortByDateDesc), 6, renderTransferRow);
-  renderTable("transactionsTable", state.transactions.slice().sort(sortByDateDesc), 6, renderTransactionRow);
+  renderCompactTable({
+    key: "transactions",
+    rows: state.transactions.slice().sort(sortByDateDesc),
+    targetId: "transactionsTable",
+    colSpan: 6,
+    renderer: renderTransactionRow,
+    toolsId: "transactionsTableTools",
+    summaryId: "transactionsTableSummary",
+    toggleId: "transactionsTableToggle",
+    emptySummary: "Aucun mouvement unique pour le moment.",
+    collapsedSummary: (visible, total) => `${visible} mouvement${visible > 1 ? "s" : ""} sur ${total} affiché${visible > 1 ? "s" : ""}.`,
+    expandedSummary: (total) => `${total} mouvement${total > 1 ? "s" : ""} unique${total > 1 ? "s" : ""} affiché${total > 1 ? "s" : ""}.`,
+    expandLabel: "Voir tous les mouvements",
+    collapseLabel: "Réduire la liste",
+  });
 }
 
 function renderAccountsTable() {
@@ -2171,6 +2221,46 @@ function renderTable(targetId, rows, colSpan, renderer) {
   }
 
   target.innerHTML = rows.map(renderer).join("");
+}
+
+function renderCompactTable(config) {
+  const rows = Array.isArray(config.rows) ? config.rows : [];
+  const target = $(config.targetId);
+  const tools = $(config.toolsId);
+  const summary = $(config.summaryId);
+  const toggle = $(config.toggleId);
+  if (!target) {
+    return;
+  }
+
+  const expanded = Boolean(compactTableState[config.key]);
+  const hasOverflow = rows.length > COMPACT_TABLE_LIMIT;
+  const visibleRows = expanded || !hasOverflow ? rows : rows.slice(0, COMPACT_TABLE_LIMIT);
+  renderTable(config.targetId, visibleRows, config.colSpan, config.renderer);
+
+  if (!tools || !summary || !toggle) {
+    return;
+  }
+
+  tools.hidden = false;
+  if (!rows.length) {
+    summary.textContent = config.emptySummary || "Aucune donnée pour le moment.";
+    toggle.hidden = true;
+    return;
+  }
+
+  if (!hasOverflow) {
+    summary.textContent = config.expandedSummary ? config.expandedSummary(rows.length) : `${rows.length} élément(s).`;
+    toggle.hidden = true;
+    return;
+  }
+
+  summary.textContent = expanded
+    ? config.expandedSummary(rows.length)
+    : config.collapsedSummary(visibleRows.length, rows.length);
+  toggle.hidden = false;
+  toggle.textContent = expanded ? config.collapseLabel : config.expandLabel;
+  toggle.dataset.compactTable = config.key;
 }
 
 function renderAccountRow(account) {
@@ -2316,6 +2406,21 @@ function renderActions(collection, id) {
       <button class="table-button delete" type="button" data-action="delete" data-collection="${escapeHtml(collection)}" data-id="${escapeHtml(id)}">Supprimer</button>
     </div>
   `;
+}
+
+function handleCompactTableToggle(event) {
+  const button = event.target.closest("[data-compact-table]");
+  if (!button) {
+    return;
+  }
+
+  const key = button.dataset.compactTable;
+  if (!Object.prototype.hasOwnProperty.call(compactTableState, key)) {
+    return;
+  }
+
+  compactTableState[key] = !compactTableState[key];
+  renderTables();
 }
 
 function renderAccountActions(account) {
@@ -2517,14 +2622,17 @@ function renderProjection() {
     return lowest;
   }, null);
   const nextIncome = futureEvents.find((event) => event.kind === "income");
-  const nextBill = futureEvents.find((event) => event.kind === "bill");
+  const nextBillSummary = getNextBillSummary(futureEvents);
 
   $("heroProjected").textContent = lastPoint
     ? formatCurrency(lastPoint.balance)
     : formatCurrency(getTotalCurrentBalance());
   $("heroProjectedCaption").textContent = `A ${state.household.projectionMonths || 6} mois.`;
   $("heroNextIncome").textContent = nextIncome ? formatDate(nextIncome.date) : "Aucune";
-  $("heroNextBill").textContent = nextBill ? formatDate(nextBill.date) : "Aucune";
+  $("heroNextBill").textContent = nextBillSummary ? formatDaysUntilLabel(nextBillSummary.daysAway) : "Aucune";
+  $("heroNextBillCaption").textContent = nextBillSummary
+    ? `${formatDate(nextBillSummary.date)} • ${nextBillSummary.count} facture${nextBillSummary.count > 1 ? "s" : ""} • ${formatCurrency(nextBillSummary.totalAmount)}`
+    : "Aucune facture récurrente à venir.";
   $("netMonthlyStat").textContent = formatCurrency(metrics.monthlyNet);
   $("netMonthlyCaption").textContent =
     metrics.monthlyNet >= 0 ? "Les récurrents vont dans le bon sens." : "Le rythme doit être ajusté.";
@@ -2782,43 +2890,24 @@ function renderSharedDebtCards() {
   const summary = computeSharedDebtSummary();
   const partnerOne = state.household.partnerOne || "Moi";
   const partnerTwo = state.household.partnerTwo || "Geneviève";
-  const cards = [
-    {
-      label: `${partnerOne} doit`,
-      value: formatCurrency(summary.partnerOneOwes),
-      note: `Total des dépenses partagées payées par ${partnerTwo}.`,
-    },
-    {
-      label: `${partnerTwo} doit`,
-      value: formatCurrency(summary.partnerTwoOwes),
-      note: `Total des dépenses partagées payées par ${partnerOne}.`,
-    },
-    {
-      label: "Solde net entre vous",
-      value:
-        summary.net > 0
-          ? `${partnerOne} doit ${formatCurrency(summary.net)}`
-          : summary.net < 0
-            ? `${partnerTwo} doit ${formatCurrency(Math.abs(summary.net))}`
-            : "Vous êtes à jour",
-      note:
-        summary.net === 0
-          ? "Les dépenses partagées se compensent en ce moment."
-          : "Ce solde peut ensuite être réglé par un virement réel si vous voulez solder les comptes.",
-    },
-  ];
+  const card = {
+    label: "Solde net entre vous",
+    value: formatCurrency(Math.abs(summary.net)),
+    note:
+      summary.net > 0
+        ? `${partnerOne} doit ${partnerTwo}.`
+        : summary.net < 0
+          ? `${partnerTwo} doit ${partnerOne}.`
+          : "Vous êtes à jour.",
+  };
 
-  target.innerHTML = cards
-    .map(
-      (card) => `
-        <article class="debt-card fade-in">
-          <span>${escapeHtml(card.label)}</span>
-          <strong>${escapeHtml(card.value)}</strong>
-          <p>${escapeHtml(card.note)}</p>
-        </article>
-      `
-    )
-    .join("");
+  target.innerHTML = `
+    <article class="debt-card fade-in">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.value)}</strong>
+      <p>${escapeHtml(card.note)}</p>
+    </article>
+  `;
 }
 
 function computeMetrics() {
@@ -2857,9 +2946,11 @@ function computeOwnerMetrics() {
       state.bills.filter((item) => item.owner === owner),
       (item) => monthlyAmount(item.amount, item.frequency)
     );
-    const savings = sumBy(
-      state.savingsGoals.filter((item) => item.owner === owner),
-      (item) => monthlyAmount(item.contributionAmount, item.frequency)
+    const goalContributions = state.savingsGoals.filter((item) => item.owner === owner);
+    const savings = sumBy(goalContributions, (item) => monthlyAmount(item.contributionAmount, item.frequency));
+    const savingsFlow = sumBy(goalContributions, (item) =>
+      monthlyAmount(item.contributionAmount, item.frequency) *
+      (isSavingsGoalAccount(item) ? 1 : -1)
     );
     const shared = isSharedHolder(account.holder);
     const projection = buildProjection(state.household.projectionMonths || 6, owner);
@@ -2881,7 +2972,7 @@ function computeOwnerMetrics() {
       income,
       bills,
       savings,
-      net: income - bills - savings,
+      net: income - bills + savingsFlow,
       note: shared
         ? `${ACCOUNT_KIND_LABELS[account.kind] || account.kind} commun projeté sur ${state.household.projectionMonths || 6} mois.`
         : `${ACCOUNT_KIND_LABELS[account.kind] || account.kind} de ${formatAccountHolder(account.holder)} projeté sur ${state.household.projectionMonths || 6} mois.`,
@@ -2902,8 +2993,9 @@ function buildProjection(months, ownerFilter = null) {
     events.push(...expandRecurring(item, "bill", -item.amount, start, end));
   });
   state.savingsGoals.filter(matchesOwner).forEach((item) => {
-    if (item.contributionAmount > 0 && item.nextDate) {
-      events.push(...expandRecurring(item, "saving", -item.contributionAmount, start, end));
+    const projectionDelta = getSavingsGoalProjectionDelta(item, ownerFilter);
+    if (projectionDelta !== 0 && item.nextDate) {
+      events.push(...expandRecurring(item, "saving", projectionDelta, start, end));
     }
   });
   state.sharedExpenses.forEach((item) => {
@@ -3385,6 +3477,37 @@ function startOfCalendarGrid(date) {
   return addDays(start, delta);
 }
 
+function differenceInCalendarDays(fromDate, toDate) {
+  const start = parseDate(fromDate);
+  const end = parseDate(toDate);
+  const startUtc = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const endUtc = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return Math.round((endUtc - startUtc) / 86400000);
+}
+
+function formatDaysUntilLabel(days) {
+  if (days <= 0) {
+    return "Aujourd'hui";
+  }
+  return `Dans ${days} jour${days > 1 ? "s" : ""}`;
+}
+
+function getNextBillSummary(events) {
+  const bills = events.filter((event) => event.kind === "bill");
+  if (!bills.length) {
+    return null;
+  }
+
+  const nextDate = bills[0].date;
+  const sameDayBills = bills.filter((event) => isSameDay(event.date, nextDate));
+  return {
+    date: nextDate,
+    daysAway: differenceInCalendarDays(new Date(), nextDate),
+    count: sameDayBills.length,
+    totalAmount: roundCurrency(sumBy(sameDayBills, (event) => Math.abs(event.delta))),
+  };
+}
+
 function formatDate(value) {
   const date = parseDate(value);
   return Number.isNaN(date.getTime())
@@ -3826,6 +3949,28 @@ function roundCurrency(value) {
 function getSavingsGoalCurrentAmount(goal) {
   const account = getAccountByOwner(goal.owner);
   return account && account.kind === "savings" ? parseAmount(account.balance) : parseAmount(goal.currentAmount);
+}
+
+function isSavingsGoalAccount(goal, accounts = state.accounts) {
+  const account = getAccountByOwner(goal.owner, accounts);
+  return Boolean(account && account.kind === "savings");
+}
+
+function getSavingsGoalProjectionDelta(goal, ownerFilter = null) {
+  const contributionAmount = parseAmount(goal.contributionAmount);
+  if (!contributionAmount) {
+    return 0;
+  }
+
+  if (!isSavingsGoalAccount(goal)) {
+    return -contributionAmount;
+  }
+
+  if (!ownerFilter) {
+    return 0;
+  }
+
+  return goal.owner === ownerFilter ? contributionAmount : 0;
 }
 
 function calculateSharedExpenseDebt(item) {
