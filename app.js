@@ -814,6 +814,7 @@ function readTransferForm(formData) {
     amount,
     date,
     notes: textValue(formData.get("notes")),
+    settlesDebt: false,
   };
 }
 
@@ -3598,6 +3599,9 @@ function sanitizeTransfer(item, household, accounts) {
     amount: parseAmount(item.amount),
     date: textValue(item.date),
     notes: textValue(item.notes),
+    settlesDebt: item.settlesDebt === true,
+    source: textValue(item.source),
+    externalId: textValue(item.externalId),
   };
 }
 
@@ -3856,8 +3860,7 @@ function calculateSharedExpenseDebt(item) {
 }
 
 function computeSharedDebtSummary() {
-  let partnerOneOwes = 0;
-  let partnerTwoOwes = 0;
+  let net = 0;
 
   state.sharedExpenses.forEach((item) => {
     const debt = calculateSharedExpenseDebt(item);
@@ -3865,16 +3868,44 @@ function computeSharedDebtSummary() {
       return;
     }
     if (debt.fromHolder === ACCOUNT_HOLDERS.partnerOne) {
-      partnerOneOwes += debt.amount;
+      net += debt.amount;
       return;
     }
-    partnerTwoOwes += debt.amount;
+    net -= debt.amount;
   });
 
-  const net = roundCurrency(partnerOneOwes - partnerTwoOwes);
+  state.transfers.forEach((item) => {
+    if (!item.settlesDebt) {
+      return;
+    }
+
+    const amount = Math.abs(parseAmount(item.amount));
+    if (!amount) {
+      return;
+    }
+
+    const fromAccount = getAccountByOwner(item.fromOwner);
+    const toAccount = getAccountByOwner(item.toOwner);
+    const fromHolder = fromAccount?.holder || inferHolderFromOwner(item.fromOwner, state.household);
+    const toHolder = toAccount?.holder || inferHolderFromOwner(item.toOwner, state.household);
+    if (isSharedHolder(fromHolder) || isSharedHolder(toHolder) || fromHolder === toHolder) {
+      return;
+    }
+
+    if (fromHolder === ACCOUNT_HOLDERS.partnerOne && toHolder === ACCOUNT_HOLDERS.partnerTwo) {
+      net -= amount;
+      return;
+    }
+
+    if (fromHolder === ACCOUNT_HOLDERS.partnerTwo && toHolder === ACCOUNT_HOLDERS.partnerOne) {
+      net += amount;
+    }
+  });
+
+  net = roundCurrency(net);
   return {
-    partnerOneOwes: roundCurrency(partnerOneOwes),
-    partnerTwoOwes: roundCurrency(partnerTwoOwes),
+    partnerOneOwes: net > 0 ? net : 0,
+    partnerTwoOwes: net < 0 ? Math.abs(net) : 0,
     net,
   };
 }
