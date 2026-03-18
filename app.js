@@ -1,4 +1,9 @@
 const STORAGE_KEY = "budget-duo-v2";
+const ACCOUNT_IDS = {
+  partnerOne: "account_partner_one",
+  partnerTwo: "account_partner_two",
+  shared: "account_shared",
+};
 
 const DEFAULT_STATE = {
   household: {
@@ -10,6 +15,26 @@ const DEFAULT_STATE = {
     projectionMonths: 6,
     safetyBuffer: 1500,
   },
+  accounts: [
+    {
+      id: ACCOUNT_IDS.partnerOne,
+      owner: "Simon",
+      kind: "personal",
+      balance: 998,
+    },
+    {
+      id: ACCOUNT_IDS.partnerTwo,
+      owner: "Ma conjointe",
+      kind: "personal",
+      balance: 0,
+    },
+    {
+      id: ACCOUNT_IDS.shared,
+      owner: "Budget Simon",
+      kind: "shared",
+      balance: 0,
+    },
+  ],
   paychecks: [
     {
       id: "pay_simon_abb",
@@ -81,6 +106,10 @@ const goalPlannerState = {
   result: null,
 };
 
+const mobileUiState = {
+  section: "overview",
+};
+
 const $ = (id) => document.getElementById(id);
 function cloneDefaults() {
   return JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -114,14 +143,25 @@ function loadState() {
 
 function sanitizeState(input) {
   const household = { ...cloneDefaults().household, ...(input.household || {}) };
+  const accounts = sanitizeAccounts(input.accounts, household, household.currentBalance);
   return {
-    household,
-    paychecks: Array.isArray(input.paychecks) ? input.paychecks : [],
-    bills: Array.isArray(input.bills) ? input.bills : [],
+    household: {
+      ...household,
+      currentBalance: sumBy(accounts, (account) => account.balance || 0),
+    },
+    accounts,
+    paychecks: Array.isArray(input.paychecks)
+      ? input.paychecks.map((item) => sanitizeOwnedItem(item, household))
+      : [],
+    bills: Array.isArray(input.bills)
+      ? input.bills.map((item) => sanitizeOwnedItem(item, household))
+      : [],
     savingsGoals: Array.isArray(input.savingsGoals)
       ? input.savingsGoals.map((item) => sanitizeSavingsGoal(item, household))
       : [],
-    transactions: Array.isArray(input.transactions) ? input.transactions : [],
+    transactions: Array.isArray(input.transactions)
+      ? input.transactions.map((item) => sanitizeOwnedItem(item, household))
+      : [],
   };
 }
 
@@ -185,6 +225,13 @@ function bindEvents() {
   $("cloudSignOutBtn").addEventListener("click", () => {
     void signOutFromCloud();
   });
+  document.querySelectorAll("[data-mobile-nav]").forEach((button) => {
+    button.addEventListener("click", () => {
+      mobileUiState.section = button.dataset.mobileNav || "overview";
+      renderMobileSections();
+    });
+  });
+  window.addEventListener("resize", renderMobileSections);
   $("savingsForm").elements.scope.addEventListener("change", updateSavingsFormOwnership);
   $("goalPlannerUseBtn").addEventListener("click", applyGoalPlannerToSavings);
 }
@@ -200,7 +247,7 @@ function saveHousehold(event) {
     partnerOne: textValue(formData.get("partnerOne")) || "Moi",
     partnerTwo: textValue(formData.get("partnerTwo")) || "Ma conjointe",
     currency: textValue(formData.get("currency")) || "CAD",
-    currentBalance: parseAmount(formData.get("currentBalance")),
+    currentBalance: 0,
     projectionMonths: parseInt(formData.get("projectionMonths"), 10) || 6,
     safetyBuffer: parseAmount(formData.get("safetyBuffer")),
   };
@@ -229,6 +276,27 @@ function saveHousehold(event) {
     }
     return { ...item, owner: renameOwner(item.owner) };
   });
+  state.accounts = [
+    {
+      id: ACCOUNT_IDS.partnerOne,
+      owner: nextPartnerOne,
+      kind: "personal",
+      balance: parseAmount(formData.get("partnerOneBalance")),
+    },
+    {
+      id: ACCOUNT_IDS.partnerTwo,
+      owner: nextPartnerTwo,
+      kind: "personal",
+      balance: parseAmount(formData.get("partnerTwoBalance")),
+    },
+    {
+      id: ACCOUNT_IDS.shared,
+      owner: nextSharedOwner,
+      kind: "shared",
+      balance: parseAmount(formData.get("sharedBalance")),
+    },
+  ];
+  syncCurrentBalance();
   persistState();
   renderAll();
 }
@@ -310,6 +378,7 @@ function readSavingsForm(formData) {
   const label = textValue(formData.get("label"));
   const contributionAmount = parseAmount(formData.get("contributionAmount"));
   const nextDate = textValue(formData.get("nextDate"));
+  const targetDate = textValue(formData.get("targetDate"));
   const scope = readSavingsScope(formData);
 
   if (!label) {
@@ -332,6 +401,7 @@ function readSavingsForm(formData) {
     contributionAmount,
     frequency: textValue(formData.get("frequency")) || "monthly",
     nextDate,
+    targetDate,
   };
 }
 
@@ -859,15 +929,18 @@ function formatCloudDateTime(value) {
 
 function renderAll() {
   populateHouseholdForm();
+  renderBalanceLabels();
   renderOwnerSelects();
   seedFormDefaults();
   updateSavingsFormOwnership();
   renderCloudPanel();
   renderGoalPlanner();
   renderStats();
+  renderAlerts();
   renderProjection();
   renderContributors();
   renderTables();
+  renderMobileSections();
 }
 
 function populateHouseholdForm() {
@@ -876,9 +949,11 @@ function populateHouseholdForm() {
   form.elements.partnerOne.value = state.household.partnerOne || "";
   form.elements.partnerTwo.value = state.household.partnerTwo || "";
   form.elements.currency.value = state.household.currency || "CAD";
-  form.elements.currentBalance.value = state.household.currentBalance || "";
   form.elements.projectionMonths.value = String(state.household.projectionMonths || 6);
   form.elements.safetyBuffer.value = state.household.safetyBuffer || "";
+  form.elements.partnerOneBalance.value = getAccountBalance(state.household.partnerOne);
+  form.elements.partnerTwoBalance.value = getAccountBalance(state.household.partnerTwo);
+  form.elements.sharedBalance.value = getAccountBalance(getSharedOwnerValue());
 }
 
 function renderOwnerSelects() {
@@ -917,6 +992,35 @@ function seedFormDefaults() {
   }
 
   $("projectionRangeChip").textContent = `${state.household.projectionMonths || 6} mois`;
+}
+
+function renderBalanceLabels() {
+  const partnerOne = state.household.partnerOne || "Moi";
+  const partnerTwo = state.household.partnerTwo || "Ma conjointe";
+  $("partnerOneBalanceLabel").textContent = `Solde de ${partnerOne}`;
+  $("partnerTwoBalanceLabel").textContent = `Solde de ${partnerTwo}`;
+  $("sharedBalanceLabel").textContent = "Solde du compte commun";
+  $("householdBalanceSummary").textContent = `Total actuel: ${formatCurrency(getTotalCurrentBalance())}`;
+}
+
+function renderMobileSections() {
+  const nav = $("mobileSectionNav");
+  if (!nav) {
+    return;
+  }
+
+  const isMobile = window.innerWidth <= 760;
+  nav.hidden = !isMobile;
+
+  document.querySelectorAll("[data-mobile-section]").forEach((section) => {
+    section.hidden = isMobile ? section.dataset.mobileSection !== mobileUiState.section : false;
+  });
+
+  document.querySelectorAll("[data-mobile-nav]").forEach((button) => {
+    const active = button.dataset.mobileNav === mobileUiState.section;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
 }
 
 function updateSavingsFormOwnership() {
@@ -980,6 +1084,8 @@ function renderGoalPlanner() {
     $("goalPlannerMonthly").textContent = "-";
     $("goalPlannerBreakdown").textContent =
       "Le calcul pourra ensuite pré-remplir un objectif d'épargne.";
+    $("goalPlannerStatus").textContent = "Nouveau";
+    $("goalPlannerStatus").className = "status-chip neutral";
     useButton.disabled = true;
     return;
   }
@@ -996,9 +1102,11 @@ function renderGoalPlanner() {
   $("goalPlannerRemaining").textContent = formatCurrency(result.remainingAmount);
   $("goalPlannerPeriods").textContent = String(result.periods);
   $("goalPlannerMonthly").textContent = formatCurrency(result.monthlyEquivalent);
+  $("goalPlannerStatus").textContent = result.planStatus.label;
+  $("goalPlannerStatus").className = `status-chip ${result.planStatus.tone}`;
   $("goalPlannerBreakdown").textContent =
     result.remainingAmount > 0
-      ? `${result.label} : cible ${formatCurrency(result.targetAmount)}, déjà ${formatCurrency(result.currentAmount)}.`
+      ? `${result.planInsight} Recommandé: ${formatCurrency(result.contributionAmount)} / ${frequencyLabel.toLowerCase()}.`
       : `Tu peux quand même réutiliser ce but pour garder une trace dans la section épargne.`;
   useButton.disabled = false;
 }
@@ -1010,24 +1118,135 @@ function applyGoalPlannerToSavings() {
 
   const result = goalPlannerState.result;
   const form = $("savingsForm");
+  form.elements.id.value = result.matchedGoal ? result.matchedGoal.id : "";
+  form.elements.scope.value = result.owner === getSharedOwnerValue() ? "shared" : "personal";
+  form.elements.owner.value = result.owner;
   form.elements.label.value = result.label;
   form.elements.targetAmount.value = String(result.targetAmount);
   form.elements.currentAmount.value = String(result.currentAmount);
   form.elements.contributionAmount.value = String(result.contributionAmount);
   form.elements.frequency.value = result.frequency;
   form.elements.nextDate.value = result.startDate;
+  form.elements.targetDate.value = result.targetDate;
   updateSavingsFormOwnership();
   form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function renderAlerts() {
+  const alerts = collectAlerts();
+  const target = $("alertsGrid");
+  if (!target) {
+    return;
+  }
+
+  if (!alerts.length) {
+    target.innerHTML = `
+      <article class="alert-card positive fade-in">
+        <span class="status-chip success">Stable</span>
+        <strong>Aucune alerte importante</strong>
+        <p>Les comptes et les objectifs n'affichent pas de signal critique pour l'instant.</p>
+      </article>
+    `;
+    return;
+  }
+
+  target.innerHTML = alerts
+    .map(
+      (alert) => `
+        <article class="alert-card ${escapeHtml(alert.tone)} fade-in">
+          <span class="status-chip ${escapeHtml(alert.tone)}">${escapeHtml(alert.label)}</span>
+          <strong>${escapeHtml(alert.title)}</strong>
+          <p>${escapeHtml(alert.message)}</p>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function collectAlerts() {
+  const alerts = [];
+  const projection = buildProjection(state.household.projectionMonths || 6);
+  const lowestCombined = projection.points.reduce((lowest, point) => {
+    if (!lowest || point.balance < lowest.balance) {
+      return point;
+    }
+    return lowest;
+  }, null);
+
+  if (lowestCombined && state.household.safetyBuffer && lowestCombined.balance < state.household.safetyBuffer) {
+    alerts.push({
+      tone: lowestCombined.balance < 0 ? "critical" : "warning",
+      label: lowestCombined.balance < 0 ? "Critique" : "Surveillance",
+      title: lowestCombined.balance < 0 ? "Le total passe sous zéro" : "Le coussin de sécurité est entamé",
+      message:
+        lowestCombined.balance < 0
+          ? `Le total projeté tomberait à ${formatCurrency(lowestCombined.balance)} le ${formatDate(lowestCombined.date)}.`
+          : `Le total toucherait ${formatCurrency(lowestCombined.balance)} le ${formatDate(lowestCombined.date)}, sous le coussin cible.`,
+    });
+  }
+
+  getOwners().forEach((owner) => {
+    const accountProjection = buildProjection(state.household.projectionMonths || 6, owner);
+    const lowestPoint = accountProjection.points.reduce((lowest, point) => {
+      if (!lowest || point.balance < lowest.balance) {
+        return point;
+      }
+      return lowest;
+    }, null);
+    if (lowestPoint && lowestPoint.balance < 0) {
+      alerts.push({
+        tone: "critical",
+        label: "Compte",
+        title: `${formatOwnerLabel(owner)} passerait sous zéro`,
+        message: `${formatOwnerLabel(owner)} atteindrait ${formatCurrency(lowestPoint.balance)} le ${formatDate(lowestPoint.date)}.`,
+      });
+    }
+  });
+
+  state.savingsGoals.forEach((goal) => {
+    const plan = evaluateGoalPlan(goal);
+    if (!goal.targetDate || !plan) {
+      return;
+    }
+    if (plan.contributionGap > 0) {
+      alerts.push({
+        tone: "warning",
+        label: "But",
+        title: `${goal.label} demande un effort plus fort`,
+        message: `Il manque ${formatCurrency(plan.contributionGap)} par ${FREQUENCY_LABELS[goal.frequency].toLowerCase()} pour tenir l'échéance du ${formatDate(goal.targetDate)}.`,
+      });
+      return;
+    }
+    if (plan.projectedFinishDate && parseDate(plan.projectedFinishDate) > parseDate(goal.targetDate)) {
+      alerts.push({
+        tone: "warning",
+        label: "But",
+        title: `${goal.label} finirait trop tard`,
+        message: `Au rythme actuel, la cible serait atteinte vers ${formatDate(plan.projectedFinishDate)} au lieu du ${formatDate(goal.targetDate)}.`,
+      });
+    }
+  });
+
+  return alerts.slice(0, 6);
+}
+
 function renderStats() {
   const metrics = computeMetrics();
+  const totalBalance = getTotalCurrentBalance();
+  const sharedBalance = getAccountBalance(getSharedOwnerValue());
+  const alerts = collectAlerts();
   const cards = [
     {
-      label: "Solde actuel",
-      value: formatCurrency(state.household.currentBalance),
-      note: "Point de départ du compte.",
-      tone: state.household.currentBalance < 0 ? "negative" : "positive",
+      label: "Solde total",
+      value: formatCurrency(totalBalance),
+      note: "Addition de tous les comptes actuels.",
+      tone: totalBalance < 0 ? "negative" : "positive",
+    },
+    {
+      label: "Compte commun",
+      value: formatCurrency(sharedBalance),
+      note: "Solde disponible pour le foyer partagé.",
+      tone: sharedBalance < 0 ? "negative" : "",
     },
     {
       label: "Revenus mensuels",
@@ -1052,6 +1271,12 @@ function renderStats() {
       value: formatCurrency(metrics.monthlyNet),
       note: metrics.monthlyNet >= 0 ? "Le budget respire encore." : "La cadence est trop lourde.",
       tone: metrics.monthlyNet >= 0 ? "positive" : "negative",
+    },
+    {
+      label: "Alertes actives",
+      value: String(alerts.length),
+      note: alerts.length ? "Points à surveiller sur vos comptes et objectifs." : "Aucun signal bloquant pour l'instant.",
+      tone: alerts.length ? "negative" : "positive",
     },
   ];
 
@@ -1126,6 +1351,9 @@ function renderSavingsRow(item) {
     : "Aucune";
   const scopeLabel = item.scope === "shared" ? "Commune" : "Personnelle";
   const scopeClass = item.scope === "shared" ? "shared" : "personal";
+  const scheduleLabel = item.targetDate
+    ? `Échéance ${formatDate(item.targetDate)}`
+    : "Sans échéance";
 
   return `
     <tr>
@@ -1137,7 +1365,10 @@ function renderSavingsRow(item) {
         <div class="progress-track"><div class="progress-fill" style="width: ${progress}%"></div></div>
       </td>
       <td>${escapeHtml(contributionLabel)}</td>
-      <td>${escapeHtml(item.nextDate ? formatDate(item.nextDate) : "-")}</td>
+      <td>
+        <div>${escapeHtml(item.nextDate ? formatDate(item.nextDate) : "-")}</div>
+        <small>${escapeHtml(scheduleLabel)}</small>
+      </td>
       <td>${renderActions("savingsGoals", item.id)}</td>
     </tr>
   `;
@@ -1228,7 +1459,7 @@ function renderProjection() {
 
   $("heroProjected").textContent = lastPoint
     ? formatCurrency(lastPoint.balance)
-    : formatCurrency(state.household.currentBalance);
+    : formatCurrency(getTotalCurrentBalance());
   $("heroProjectedCaption").textContent = `A ${state.household.projectionMonths || 6} mois.`;
   $("heroNextIncome").textContent = nextIncome ? formatDate(nextIncome.date) : "Aucune";
   $("heroNextBill").textContent = nextBill ? formatDate(nextBill.date) : "Aucune";
@@ -1237,14 +1468,14 @@ function renderProjection() {
     metrics.monthlyNet >= 0 ? "Les récurrents vont dans le bon sens." : "Le rythme doit être ajusté.";
   $("lowestBalanceStat").textContent = lowestPoint
     ? formatCurrency(lowestPoint.balance)
-    : formatCurrency(state.household.currentBalance);
+    : formatCurrency(getTotalCurrentBalance());
   $("lowestBalanceCaption").textContent = lowestPoint
     ? lowestPoint.balance < 0
       ? `Passage sous zéro le ${formatDate(lowestPoint.date)}.`
       : `Creux attendu le ${formatDate(lowestPoint.date)}.`
     : "Aucune alerte pour l'instant.";
   $("projectionSummary").textContent = lastPoint
-    ? `De ${formatCurrency(state.household.currentBalance)} à ${formatCurrency(lastPoint.balance)} sur l'horizon choisi.`
+    ? `De ${formatCurrency(getTotalCurrentBalance())} à ${formatCurrency(lastPoint.balance)} sur l'horizon choisi.`
     : "Ajoutez des données pour lancer une projection.";
 
   $("upcomingList").innerHTML = futureEvents.length
@@ -1273,12 +1504,12 @@ function renderContributors() {
       (card) => `
         <article class="contributor-card fade-in">
           <span>${escapeHtml(card.displayName)}</span>
-          <strong class="${card.net >= 0 ? "positive" : "negative"}">${escapeHtml(formatCurrency(card.net))}</strong>
+          <strong class="${card.projectedBalance >= 0 ? "positive" : "negative"}">${escapeHtml(formatCurrency(card.projectedBalance))}</strong>
           <p>${escapeHtml(card.note)}</p>
           <div class="badge-row">
-            <span class="badge">Revenus ${escapeHtml(formatCurrency(card.income))}</span>
-            <span class="badge">Factures ${escapeHtml(formatCurrency(card.bills))}</span>
-            <span class="badge">Épargne ${escapeHtml(formatCurrency(card.savings))}</span>
+            <span class="badge">Actuel ${escapeHtml(formatCurrency(card.currentBalance))}</span>
+            <span class="badge">Net ${escapeHtml(formatCurrency(card.net))}</span>
+            <span class="badge">Point bas ${escapeHtml(formatCurrency(card.lowestBalance))}</span>
           </div>
         </article>
       `
@@ -1326,35 +1557,51 @@ function computeOwnerMetrics() {
       (item) => monthlyAmount(item.contributionAmount, item.frequency)
     );
     const shared = isSharedOwner(owner);
+    const projection = buildProjection(state.household.projectionMonths || 6, owner);
+    const lowestPoint = projection.points.reduce((lowest, point) => {
+      if (!lowest || point.balance < lowest.balance) {
+        return point;
+      }
+      return lowest;
+    }, null);
+    const projectedBalance = getLast(projection.points)
+      ? getLast(projection.points).balance
+      : getAccountBalance(owner);
     return {
       owner,
       displayName: formatOwnerLabel(owner),
+      currentBalance: getAccountBalance(owner),
+      projectedBalance,
+      lowestBalance: lowestPoint ? lowestPoint.balance : getAccountBalance(owner),
       income,
       bills,
       savings,
       net: income - bills - savings,
-      note: shared ? "Vue du compte commun et des objectifs partagés." : "Net mensuel estimé.",
+      note: shared
+        ? "Projection du compte commun et de l'épargne partagée."
+        : `Solde projeté à ${state.household.projectionMonths || 6} mois.`,
     };
   });
 }
 
-function buildProjection(months) {
+function buildProjection(months, ownerFilter = null) {
   const start = startOfDay(new Date());
   const end = addMonthsClamped(start, months);
   const events = [];
+  const matchesOwner = (item) => !ownerFilter || item.owner === ownerFilter;
 
-  state.paychecks.forEach((item) => {
+  state.paychecks.filter(matchesOwner).forEach((item) => {
     events.push(...expandRecurring(item, "income", item.amount, start, end));
   });
-  state.bills.forEach((item) => {
+  state.bills.filter(matchesOwner).forEach((item) => {
     events.push(...expandRecurring(item, "bill", -item.amount, start, end));
   });
-  state.savingsGoals.forEach((item) => {
+  state.savingsGoals.filter(matchesOwner).forEach((item) => {
     if (item.contributionAmount > 0 && item.nextDate) {
       events.push(...expandRecurring(item, "saving", -item.contributionAmount, start, end));
     }
   });
-  state.transactions.forEach((item) => {
+  state.transactions.filter(matchesOwner).forEach((item) => {
     const date = parseDate(item.date);
     if (date >= start && date <= end) {
       events.push({
@@ -1370,7 +1617,7 @@ function buildProjection(months) {
 
   events.sort(compareEvents);
 
-  let runningBalance = state.household.currentBalance || 0;
+  let runningBalance = ownerFilter ? getAccountBalance(ownerFilter) : getTotalCurrentBalance();
   const points = [{ date: start, balance: runningBalance }];
   events.forEach((event) => {
     runningBalance += event.delta;
@@ -1514,6 +1761,7 @@ function importState(event) {
 
 function buildGoalPlannerResult(formData) {
   const label = textValue(formData.get("label")) || "Nouveau but";
+  const owner = textValue(formData.get("owner")) || state.household.partnerOne || "Moi";
   const targetAmount = parseAmount(formData.get("targetAmount"));
   const currentAmount = parseAmount(formData.get("currentAmount"));
   const startDate = textValue(formData.get("startDate"));
@@ -1545,9 +1793,33 @@ function buildGoalPlannerResult(formData) {
 
   const remainingAmount = Math.max(targetAmount - currentAmount, 0);
   const contributionAmount = remainingAmount > 0 ? roundUpCurrency(remainingAmount / periods) : 0;
+  const matchedGoal = findSavingsGoal(label, owner);
+  const currentPlan = matchedGoal
+    ? evaluateGoalPlan({
+        ...matchedGoal,
+        currentAmount,
+        targetAmount,
+        targetDate,
+        frequency,
+        nextDate: startDate,
+      })
+    : null;
+  const planStatus = currentPlan
+    ? currentPlan.contributionGap > 0
+      ? { label: "À renforcer", tone: "warning" }
+      : { label: "Sur la bonne voie", tone: "success" }
+    : { label: "Nouveau", tone: "neutral" };
+  const planInsight = currentPlan
+    ? currentPlan.contributionGap > 0
+      ? `Le plan actuel manque ${formatCurrency(currentPlan.contributionGap)} par ${FREQUENCY_LABELS[frequency].toLowerCase()}.`
+      : currentPlan.projectedFinishDate
+        ? `Au rythme actuel, l'objectif serait atteint vers ${formatDate(currentPlan.projectedFinishDate)}.`
+        : "Le plan actuel couvre déjà la cible."
+    : "Aucun objectif existant trouvé pour ce compte, le calcul sert de point de départ.";
 
   return {
     label,
+    owner,
     targetAmount,
     currentAmount,
     remainingAmount,
@@ -1557,7 +1829,67 @@ function buildGoalPlannerResult(formData) {
     periods,
     contributionAmount,
     monthlyEquivalent: monthlyAmount(contributionAmount, frequency),
+    matchedGoal,
+    planStatus,
+    planInsight,
   };
+}
+
+function findSavingsGoal(label, owner) {
+  const normalizedLabel = textValue(label).toLowerCase();
+  return (
+    state.savingsGoals.find(
+      (goal) => goal.owner === owner && textValue(goal.label).toLowerCase() === normalizedLabel
+    ) || null
+  );
+}
+
+function evaluateGoalPlan(goal) {
+  const startDate = textValue(goal.nextDate) || formatInputDate(new Date());
+  const targetDate = textValue(goal.targetDate);
+  if (!targetDate) {
+    return null;
+  }
+
+  const periods = countContributionSlots(startDate, targetDate, goal.frequency || "monthly");
+  if (!periods) {
+    return null;
+  }
+
+  const remainingAmount = Math.max(parseAmount(goal.targetAmount) - parseAmount(goal.currentAmount), 0);
+  const requiredContribution = remainingAmount > 0 ? roundUpCurrency(remainingAmount / periods) : 0;
+  const currentContribution = parseAmount(goal.contributionAmount);
+
+  return {
+    requiredContribution,
+    currentContribution,
+    contributionGap: Math.max(requiredContribution - currentContribution, 0),
+    projectedFinishDate: estimateGoalCompletionDate(goal),
+  };
+}
+
+function estimateGoalCompletionDate(goal) {
+  const contributionAmount = parseAmount(goal.contributionAmount);
+  const targetAmount = parseAmount(goal.targetAmount);
+  let currentAmount = parseAmount(goal.currentAmount);
+  if (currentAmount >= targetAmount) {
+    return textValue(goal.targetDate) || formatInputDate(new Date());
+  }
+  if (!contributionAmount) {
+    return "";
+  }
+
+  let cursor = parseDate(textValue(goal.nextDate) || formatInputDate(new Date()));
+  let guard = 0;
+  while (currentAmount < targetAmount && guard < 600) {
+    currentAmount += contributionAmount;
+    if (currentAmount >= targetAmount) {
+      return formatInputDate(cursor);
+    }
+    cursor = advanceDate(cursor, goal.frequency || "monthly");
+    guard += 1;
+  }
+  return "";
 }
 
 function countContributionSlots(startDate, targetDate, frequency) {
@@ -1684,26 +2016,103 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function sanitizeAccounts(inputAccounts, household, legacyCurrentBalance) {
+  const defaults = createAccountsForHousehold(household, legacyCurrentBalance);
+  if (!Array.isArray(inputAccounts) || !inputAccounts.length) {
+    return defaults;
+  }
+
+  return defaults.map((defaultAccount) => {
+    const existing = inputAccounts.find(
+      (account) =>
+        account.id === defaultAccount.id ||
+        textValue(account.owner) === defaultAccount.owner ||
+        (defaultAccount.kind === "shared" && textValue(account.kind) === "shared")
+    );
+
+    return {
+      ...defaultAccount,
+      balance: parseAmount(existing ? existing.balance : defaultAccount.balance),
+    };
+  });
+}
+
+function sanitizeOwnedItem(item, household) {
+  return {
+    ...item,
+    id: textValue(item.id) || createId(),
+    owner: sanitizeOwnerLabel(item.owner, household),
+    label: textValue(item.label),
+    frequency: textValue(item.frequency) || "monthly",
+    nextDate: textValue(item.nextDate),
+    date: textValue(item.date),
+    category: textValue(item.category),
+    notes: textValue(item.notes),
+    amount: parseAmount(item.amount),
+  };
+}
+
 function sanitizeSavingsGoal(item, household) {
-  const sharedOwner = household.householdName || "Budget du foyer";
-  const owner = textValue(item.owner);
-  const scope = textValue(item.scope) === "shared" || owner === sharedOwner ? "shared" : "personal";
+  const owner = sanitizeOwnerLabel(item.owner, household);
+  const scope = textValue(item.scope) === "shared" || owner === getSharedOwnerValueFromHousehold(household) ? "shared" : "personal";
 
   return {
     id: textValue(item.id) || createId(),
     scope,
-    owner: scope === "shared" ? sharedOwner : owner || household.partnerOne || "Moi",
+    owner: scope === "shared" ? getSharedOwnerValueFromHousehold(household) : owner || household.partnerOne || "Moi",
     label: textValue(item.label),
     targetAmount: parseAmount(item.targetAmount),
     currentAmount: parseAmount(item.currentAmount),
     contributionAmount: parseAmount(item.contributionAmount),
     frequency: textValue(item.frequency) || "monthly",
     nextDate: textValue(item.nextDate),
+    targetDate: textValue(item.targetDate),
   };
 }
 
+function createAccountsForHousehold(household, legacyCurrentBalance = 0) {
+  return [
+    {
+      id: ACCOUNT_IDS.partnerOne,
+      owner: household.partnerOne || "Moi",
+      kind: "personal",
+      balance: parseAmount(legacyCurrentBalance),
+    },
+    {
+      id: ACCOUNT_IDS.partnerTwo,
+      owner: household.partnerTwo || "Ma conjointe",
+      kind: "personal",
+      balance: 0,
+    },
+    {
+      id: ACCOUNT_IDS.shared,
+      owner: getSharedOwnerValueFromHousehold(household),
+      kind: "shared",
+      balance: 0,
+    },
+  ];
+}
+
+function sanitizeOwnerLabel(owner, household) {
+  const value = textValue(owner);
+  if (!value) {
+    return household.partnerOne || "Moi";
+  }
+  if (value === household.partnerOne || value === household.partnerTwo || value === household.householdName) {
+    return value;
+  }
+  if (value === "Compte commun") {
+    return getSharedOwnerValueFromHousehold(household);
+  }
+  return value;
+}
+
+function getSharedOwnerValueFromHousehold(household) {
+  return household.householdName || "Budget du foyer";
+}
+
 function getSharedOwnerValue() {
-  return state.household.householdName || "Budget du foyer";
+  return getSharedOwnerValueFromHousehold(state.household);
 }
 
 function isSharedOwner(owner) {
@@ -1712,6 +2121,23 @@ function isSharedOwner(owner) {
 
 function formatOwnerLabel(owner) {
   return isSharedOwner(owner) ? "Compte commun" : textValue(owner) || "-";
+}
+
+function getAccountByOwner(owner) {
+  return state.accounts.find((account) => account.owner === owner) || null;
+}
+
+function getAccountBalance(owner) {
+  const account = getAccountByOwner(owner);
+  return account ? account.balance || 0 : 0;
+}
+
+function getTotalCurrentBalance() {
+  return sumBy(state.accounts, (account) => account.balance || 0);
+}
+
+function syncCurrentBalance() {
+  state.household.currentBalance = getTotalCurrentBalance();
 }
 
 function getPersonOwners() {
@@ -1773,6 +2199,26 @@ function createDemoState() {
       projectionMonths: 6,
       safetyBuffer: 1500,
     },
+    accounts: [
+      {
+        id: ACCOUNT_IDS.partnerOne,
+        owner: "Simon",
+        kind: "personal",
+        balance: 998,
+      },
+      {
+        id: ACCOUNT_IDS.partnerTwo,
+        owner: "Ma conjointe",
+        kind: "personal",
+        balance: 0,
+      },
+      {
+        id: ACCOUNT_IDS.shared,
+        owner: "Budget Simon",
+        kind: "shared",
+        balance: 0,
+      },
+    ],
     paychecks: [
       {
         id: createId(),
@@ -1805,6 +2251,7 @@ function createDemoState() {
         contributionAmount: 300,
         frequency: "monthly",
         nextDate: "2026-04-09",
+        targetDate: "2026-09-01",
       },
     ],
     transactions: [],

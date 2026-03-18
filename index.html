@@ -17,19 +17,19 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260318-4">
+    <link rel="stylesheet" href="styles.css?v=20260318-6">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-18 / accents</p>
+          <p class="eyebrow">Build 2026-03-18 / accounts-goals-alerts-v2</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
             mouvements ponctuels. Le tableau de bord projette ensuite l'évolution
-            de votre compte sur plusieurs mois.
+            de vos comptes sur plusieurs mois.
           </p>
           <div class="hero-actions">
             <button id="loadDemoBtn" class="button secondary" type="button">
@@ -67,8 +67,15 @@
         </div>
       </header>
 
+      <nav id="mobileSectionNav" class="mobile-section-nav" hidden aria-label="Navigation mobile">
+        <button class="mobile-tab active" type="button" data-mobile-nav="overview" aria-pressed="true">Aperçu</button>
+        <button class="mobile-tab" type="button" data-mobile-nav="planning" aria-pressed="false">Buts</button>
+        <button class="mobile-tab" type="button" data-mobile-nav="entries" aria-pressed="false">Entrées</button>
+        <button class="mobile-tab" type="button" data-mobile-nav="cloud" aria-pressed="false">Cloud</button>
+      </nav>
+
       <main class="layout">
-        <section class="panel">
+        <section class="panel" data-mobile-section="cloud">
           <div class="section-head">
             <div>
               <p class="section-kicker">Cloud</p>
@@ -158,14 +165,14 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-mobile-section="overview">
           <div class="section-head">
             <div>
               <p class="section-kicker">Base du foyer</p>
               <h2>Paramètres du budget</h2>
             </div>
             <p>
-              Le solde actuel sert de point de départ à toutes les projections.
+              Les soldes actuels servent de point de départ à toutes les projections.
             </p>
           </div>
           <form id="householdForm" class="grid-form">
@@ -190,8 +197,16 @@
               </select>
             </label>
             <label>
-              Solde actuel
-              <input name="currentBalance" type="number" step="0.01" placeholder="0.00">
+              <span id="partnerOneBalanceLabel">Solde de la personne 1</span>
+              <input name="partnerOneBalance" type="number" step="0.01" placeholder="0.00">
+            </label>
+            <label>
+              <span id="partnerTwoBalanceLabel">Solde de la personne 2</span>
+              <input name="partnerTwoBalance" type="number" step="0.01" placeholder="0.00">
+            </label>
+            <label>
+              <span id="sharedBalanceLabel">Solde du compte commun</span>
+              <input name="sharedBalance" type="number" step="0.01" placeholder="0.00">
             </label>
             <label>
               Horizon de projection
@@ -211,11 +226,23 @@
               <button class="button primary" type="submit">Enregistrer</button>
             </div>
           </form>
+          <p id="householdBalanceSummary" class="helper-text">Total actuel: 0,00 $</p>
         </section>
 
-        <section class="stats-grid" id="statsGrid"></section>
+        <section class="stats-grid" id="statsGrid" data-mobile-section="overview"></section>
 
-        <section class="panel">
+        <section class="panel" data-mobile-section="overview">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Alertes</p>
+              <h2>À surveiller</h2>
+            </div>
+            <p>Les alertes mettent en avant les comptes fragiles et les buts à renforcer.</p>
+          </div>
+          <div class="alerts-grid" id="alertsGrid"></div>
+        </section>
+
+        <section class="panel" data-mobile-section="overview">
           <div class="section-head">
             <div>
               <p class="section-kicker">Simulation</p>
@@ -256,18 +283,18 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-mobile-section="overview">
           <div class="section-head">
             <div>
-              <p class="section-kicker">Vue par personne</p>
-              <h2>Contribution au budget</h2>
+              <p class="section-kicker">Comptes</p>
+              <h2>Soldes séparés</h2>
             </div>
-            <p>Résumé mensuel pour chaque personne du foyer et les postes partagés.</p>
+            <p>Chaque compte suit son solde actuel, son point bas et sa projection propre.</p>
           </div>
           <div class="contributors" id="contributorsGrid"></div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-mobile-section="planning">
           <div class="section-head">
             <div>
               <p class="section-kicker">But</p>
@@ -277,6 +304,10 @@
           </div>
           <div class="planner-layout">
             <form id="goalPlannerForm" class="planner-form">
+              <label>
+                Compte visé
+                <select name="owner" class="owner-select"></select>
+              </label>
               <label>
                 Nom du but
                 <input name="label" type="text" placeholder="Voyage, auto, coussin commun">
@@ -312,6 +343,7 @@
 
             <aside class="planner-card">
               <span class="section-kicker">Estimation</span>
+              <span id="goalPlannerStatus" class="status-chip neutral">Nouveau</span>
               <strong id="goalPlannerHeadline">À calculer</strong>
               <p id="goalPlannerSummary">
                 Remplissez le but, l'échéance et la fréquence pour voir l'effort à fournir.
@@ -343,7 +375,7 @@
         </section>
 
         <section class="cards-grid">
-          <section class="panel">
+          <section class="panel" data-mobile-section="entries">
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Revenus</p>
@@ -354,7 +386,7 @@
             <form id="paycheckForm" class="stack-form">
               <input name="id" type="hidden">
               <label>
-                Personne
+                Compte
                 <select name="owner" class="owner-select"></select>
               </label>
               <label>
@@ -386,7 +418,7 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Personne</th>
+                    <th>Compte</th>
                     <th>Libellé</th>
                     <th>Fréquence</th>
                     <th>Montant</th>
@@ -399,7 +431,7 @@
             </div>
           </section>
 
-          <section class="panel">
+          <section class="panel" data-mobile-section="entries">
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Charges</p>
@@ -410,7 +442,7 @@
             <form id="billForm" class="stack-form">
               <input name="id" type="hidden">
               <label>
-                Personne / budget
+                Compte
                 <select name="owner" class="owner-select"></select>
               </label>
               <label>
@@ -446,7 +478,7 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Personne</th>
+                    <th>Compte</th>
                     <th>Libellé</th>
                     <th>Catégorie</th>
                     <th>Fréquence</th>
@@ -460,7 +492,7 @@
             </div>
           </section>
 
-          <section class="panel">
+          <section class="panel" data-mobile-section="planning">
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Épargne</p>
@@ -478,7 +510,7 @@
                 </select>
               </label>
               <label>
-                Titulaire
+                Compte
                 <select id="savingsOwnerSelect" name="owner" class="owner-select"></select>
               </label>
               <label>
@@ -506,6 +538,10 @@
                 </select>
               </label>
               <label>
+                Échéance cible
+                <input name="targetDate" type="date">
+              </label>
+              <label>
                 Prochaine date
                 <input name="nextDate" type="date">
               </label>
@@ -522,7 +558,7 @@
                 <thead>
                   <tr>
                     <th>Type</th>
-                    <th>Titulaire</th>
+                    <th>Compte</th>
                     <th>Objectif</th>
                     <th>Progression</th>
                     <th>Contribution</th>
@@ -535,7 +571,7 @@
             </div>
           </section>
 
-          <section class="panel">
+          <section class="panel" data-mobile-section="entries">
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Ponctuel</p>
@@ -550,7 +586,7 @@
                 <input name="date" type="date">
               </label>
               <label>
-                Personne / budget
+                Compte
                 <select name="owner" class="owner-select"></select>
               </label>
               <label>
@@ -583,7 +619,7 @@
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Personne</th>
+                    <th>Compte</th>
                     <th>Type</th>
                     <th>Libellé</th>
                     <th>Montant</th>
@@ -596,7 +632,7 @@
           </section>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-mobile-section="entries">
           <div class="section-head">
             <div>
               <p class="section-kicker">Sauvegarde</p>
@@ -621,6 +657,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260317-1"></script>
-    <script src="app.js?v=20260318-4"></script>
+    <script src="app.js?v=20260318-6"></script>
   </body>
 </html>

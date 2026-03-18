@@ -8,6 +8,26 @@
     "projectionMonths": 6,
     "safetyBuffer": 1500
   },
+  "accounts": [
+    {
+      "id": "account_partner_one",
+      "owner": "Simon",
+      "kind": "personal",
+      "balance": 998
+    },
+    {
+      "id": "account_partner_two",
+      "owner": "Ma conjointe",
+      "kind": "personal",
+      "balance": 0
+    },
+    {
+      "id": "account_shared",
+      "owner": "Budget Simon",
+      "kind": "shared",
+      "balance": 0
+    }
+  ],
   "paychecks": [
     {
       "id": "pay_simon_abb",
@@ -39,7 +59,8 @@
       "currentAmount": 300,
       "contributionAmount": 300,
       "frequency": "monthly",
-      "nextDate": "2026-04-09"
+      "nextDate": "2026-04-09",
+      "targetDate": "2026-09-01"
     }
   ],
   "transactions": []
