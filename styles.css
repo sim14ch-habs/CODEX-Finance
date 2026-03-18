@@ -259,17 +259,35 @@ textarea {
 .section-head {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   align-items: end;
   padding: 26px 28px 0;
 }
 
+.section-head > div {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.section-head > p {
+  flex: 1 1 240px;
+  max-width: 34ch;
+  margin: 0;
+}
+
 .section-head.tight {
   padding-bottom: 4px;
+  align-items: start;
 }
 
 .section-head h2 {
   font-size: clamp(1.8rem, 3vw, 2.4rem);
+  line-height: 1.08;
+}
+
+.section-head.tight h2 {
+  font-size: clamp(1.45rem, 2.3vw, 1.95rem);
 }
 
 .grid-form,
@@ -1014,6 +1032,14 @@ svg {
   .hero {
     padding-top: 24px;
     padding-bottom: 24px;
+  }
+
+  .section-head {
+    align-items: start;
+  }
+
+  .section-head > p {
+    max-width: none;
   }
 
   .hero h1 {
