@@ -449,14 +449,13 @@ function saveHousehold(event) {
       id: ACCOUNT_IDS.partnerOne,
       nextOwner: textValue(formData.get("partnerOne")) || "Moi",
       holder: ACCOUNT_HOLDERS.partnerOne,
-      previousOwner: state.accounts.find((account) => account.id === ACCOUNT_IDS.partnerOne)?.owner || state.household.partnerOne || "Moi",
+      previousOwner: previousHousehold.partnerOne || "Moi",
     },
     {
       id: ACCOUNT_IDS.partnerTwo,
       nextOwner: textValue(formData.get("partnerTwo")) || "Geneviève",
       holder: ACCOUNT_HOLDERS.partnerTwo,
-      previousOwner:
-        state.accounts.find((account) => account.id === ACCOUNT_IDS.partnerTwo)?.owner || state.household.partnerTwo || "Geneviève",
+      previousOwner: previousHousehold.partnerTwo || "Geneviève",
     },
   ];
   state.household = {
@@ -587,6 +586,10 @@ function saveAccount(event) {
       ...account,
       status: previous.status || "active",
     };
+    if (textValue(previous.owner) && textValue(previous.owner) !== textValue(account.owner)) {
+      renameAccountReferences(previous.owner, account.owner);
+      cleanupRenamedAccountGhost(previous.owner);
+    }
   } else {
     state.accounts.unshift(account);
   }
@@ -636,6 +639,62 @@ function readAccountForm(formData) {
     status: existing?.status || "active",
     balance,
   };
+}
+
+function renameAccountReferences(previousOwner, nextOwner) {
+  const from = textValue(previousOwner);
+  const to = textValue(nextOwner);
+  if (!from || !to || from === to) {
+    return;
+  }
+
+  const renameOwner = (owner) => (textValue(owner) === from ? to : owner);
+
+  ["paychecks", "bills", "transactions"].forEach((collection) => {
+    state[collection] = state[collection].map((item) => ({
+      ...item,
+      owner: renameOwner(item.owner),
+    }));
+  });
+  state.savingsGoals = state.savingsGoals.map((item) => ({
+    ...item,
+    owner: renameOwner(item.owner),
+    sourceOwner: renameOwner(item.sourceOwner),
+  }));
+  state.sharedExpenses = state.sharedExpenses.map((item) => ({
+    ...item,
+    paidBy: renameOwner(item.paidBy),
+  }));
+  state.transfers = state.transfers.map((item) => ({
+    ...item,
+    fromOwner: renameOwner(item.fromOwner),
+    toOwner: renameOwner(item.toOwner),
+  }));
+
+  const projectionSelection = parseProjectionSelection(projectionUiState.owner);
+  if (projectionSelection.type === "account" && projectionSelection.owner === from) {
+    projectionUiState.owner = `account:${to}`;
+  }
+}
+
+function cleanupRenamedAccountGhost(previousOwner) {
+  const owner = textValue(previousOwner);
+  if (!owner) {
+    return;
+  }
+
+  state.accounts = state.accounts.filter((account) => {
+    if (textValue(account.owner) !== owner) {
+      return true;
+    }
+    if (account.id === ACCOUNT_IDS.partnerOne || account.id === ACCOUNT_IDS.partnerTwo) {
+      return true;
+    }
+    if (parseAmount(account.balance) !== 0) {
+      return true;
+    }
+    return hasAnyAccountReference(owner);
+  });
 }
 
 function readPaycheckForm(formData) {
@@ -4534,6 +4593,17 @@ function hasPlannedActivityForAccount(owner) {
     state.transfers.some(
       (item) => (item.fromOwner === owner || item.toOwner === owner) && parseDate(item.date) >= today
     )
+  );
+}
+
+function hasAnyAccountReference(owner) {
+  return (
+    state.paychecks.some((item) => item.owner === owner) ||
+    state.bills.some((item) => item.owner === owner) ||
+    state.transactions.some((item) => item.owner === owner) ||
+    state.savingsGoals.some((item) => item.owner === owner || item.sourceOwner === owner) ||
+    state.sharedExpenses.some((item) => item.paidBy === owner) ||
+    state.transfers.some((item) => item.fromOwner === owner || item.toOwner === owner)
   );
 }
 
