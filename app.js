@@ -463,7 +463,7 @@ function saveHousehold(event) {
     householdName: textValue(formData.get("householdName")) || "Budget du foyer",
     partnerOne: textValue(formData.get("partnerOne")) || "Moi",
     partnerTwo: textValue(formData.get("partnerTwo")) || "Geneviève",
-    currency: textValue(formData.get("currency")) || "CAD",
+    currency: "CAD",
     currentBalance: getTotalCurrentBalance(),
     projectionMonths: parseInt(formData.get("projectionMonths"), 10) || 6,
   };
@@ -1649,7 +1649,6 @@ function populateHouseholdForm() {
   form.elements.householdName.value = state.household.householdName || "";
   form.elements.partnerOne.value = state.household.partnerOne || "";
   form.elements.partnerTwo.value = state.household.partnerTwo || "";
-  form.elements.currency.value = state.household.currency || "CAD";
   form.elements.projectionMonths.value = String(state.household.projectionMonths || 6);
 }
 
@@ -3795,7 +3794,7 @@ function formatInputDate(date) {
 function formatCurrency(value) {
   return new Intl.NumberFormat("fr-CA", {
     style: "currency",
-    currency: state.household.currency || "CAD",
+    currency: "CAD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value || 0);
