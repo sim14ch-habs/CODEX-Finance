@@ -1265,7 +1265,6 @@ function renderProjection() {
     : "<li><div><strong>Aucun mouvement a venir</strong><small>Ajoutez des paies, factures ou virements.</small></div></li>";
 
   drawProjectionChart(projection.points, state.household.safetyBuffer);
-  drawMonthlyChart(projection.monthBuckets);
 }
 
 function renderContributors() {
@@ -1384,7 +1383,6 @@ function buildProjection(months) {
   return {
     events,
     points,
-    monthBuckets: buildMonthBuckets(start, end, events),
   };
 }
 
@@ -1406,36 +1404,6 @@ function expandRecurring(item, kind, delta, start, end) {
     guard += 1;
   }
   return events;
-}
-
-function buildMonthBuckets(start, end, events) {
-  const buckets = [];
-  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
-  const limit = new Date(end.getFullYear(), end.getMonth(), 1);
-
-  while (cursor <= limit) {
-    const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
-    const monthEvents = events.filter((event) => event.date >= monthStart && event.date <= monthEnd);
-    const income = sumBy(
-      monthEvents.filter((event) => event.delta > 0),
-      (event) => event.delta
-    );
-    const outflow = Math.abs(
-      sumBy(
-        monthEvents.filter((event) => event.delta < 0),
-        (event) => event.delta
-      )
-    );
-    buckets.push({
-      label: monthStart.toLocaleDateString("fr-CA", { month: "short", year: "numeric" }),
-      income,
-      outflow,
-      net: income - outflow,
-    });
-    cursor.setMonth(cursor.getMonth() + 1);
-  }
-  return buckets;
 }
 
 function compareEvents(a, b) {
@@ -1512,47 +1480,6 @@ function drawProjectionChart(points, safetyBuffer) {
     ${points.map((point) => `<circle cx="${scaleX(point.date)}" cy="${scaleY(point.balance)}" r="4.5" fill="#155e63" />`).join("")}
     ${labels}
   `;
-}
-
-function drawMonthlyChart(buckets) {
-  const svg = $("monthlyChart");
-  if (!buckets.length) {
-    svg.innerHTML = "";
-    return;
-  }
-
-  const width = 760;
-  const height = 260;
-  const padding = { top: 22, right: 18, bottom: 38, left: 46 };
-  const usableWidth = width - padding.left - padding.right;
-  const usableHeight = height - padding.top - padding.bottom;
-  const maxValue = buckets.reduce(
-    (max, bucket) => Math.max(max, bucket.income, bucket.outflow, Math.abs(bucket.net)),
-    1
-  );
-  const groupWidth = usableWidth / buckets.length;
-  const barWidth = Math.min(24, groupWidth / 3);
-  const baseline = padding.top + usableHeight;
-  const scaleHeight = (value) => (value / maxValue) * usableHeight;
-
-  svg.innerHTML = buckets
-    .map((bucket, index) => {
-      const center = padding.left + index * groupWidth + groupWidth / 2;
-      const incomeHeight = scaleHeight(bucket.income);
-      const outflowHeight = scaleHeight(bucket.outflow);
-      const netHeight = scaleHeight(Math.abs(bucket.net));
-      const netY = baseline - netHeight;
-      return `
-        <g>
-          <line x1="${center}" y1="${padding.top}" x2="${center}" y2="${baseline}" stroke="rgba(19,35,29,0.06)" />
-          <rect x="${center - barWidth - 4}" y="${baseline - incomeHeight}" width="${barWidth}" height="${incomeHeight}" rx="6" fill="#155e63" />
-          <rect x="${center + 4}" y="${baseline - outflowHeight}" width="${barWidth}" height="${outflowHeight}" rx="6" fill="#d96d30" />
-          <rect x="${center - barWidth / 2}" y="${netY}" width="${barWidth}" height="${netHeight}" rx="6" fill="${bucket.net >= 0 ? "#206c4f" : "#b43f28"}" opacity="0.9" />
-          <text x="${center}" y="${height - 12}" fill="#5c6e63" font-size="12" text-anchor="middle">${escapeHtml(bucket.label)}</text>
-        </g>
-      `;
-    })
-    .join("");
 }
 
 function exportState() {

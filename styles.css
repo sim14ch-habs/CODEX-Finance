@@ -212,7 +212,6 @@ textarea {
 .insight-card,
 .stat-card,
 .contributor-card,
-.monthly-card,
 .chart-card {
   background: var(--surface-strong);
   border: 1px solid var(--line);
@@ -509,8 +508,7 @@ textarea {
   font-size: 1.05rem;
 }
 
-.chart-card,
-.monthly-card {
+.chart-card {
   padding: 18px;
 }
 
@@ -549,10 +547,6 @@ textarea {
   margin-top: 12px;
   font-size: 1.7rem;
   font-family: var(--font-display);
-}
-
-.monthly-card {
-  margin: 0 28px 28px;
 }
 
 .event-list {
@@ -773,7 +767,6 @@ svg {
   .stack-form,
   .planner-form,
   .projection-layout,
-  .monthly-card,
   .contributors,
   .table-wrap,
   .helper-text {
@@ -802,11 +795,5 @@ svg {
 
   .spotlight-grid {
     grid-template-columns: 1fr;
-  }
-
-  .monthly-card {
-    margin-left: 18px;
-    margin-right: 18px;
-    margin-bottom: 18px;
   }
 }
