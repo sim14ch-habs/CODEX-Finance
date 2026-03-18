@@ -159,6 +159,28 @@ textarea {
   align-items: center;
 }
 
+.sync-glance {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: start;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(19, 35, 29, 0.08);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.sync-glance strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.sync-glance-text {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
 .form-actions-wide {
   align-self: end;
 }
@@ -469,6 +491,57 @@ textarea {
   gap: 10px;
 }
 
+.calendar-summary,
+.calendar-week-totals,
+.shared-debt-grid {
+  display: grid;
+  gap: 14px;
+  padding: 0 28px 20px;
+}
+
+.calendar-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.calendar-week-totals {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 4px;
+}
+
+.calendar-summary-card,
+.calendar-week-card,
+.debt-card {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(19, 35, 29, 0.08);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.calendar-summary-card span,
+.calendar-week-card span,
+.debt-card span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.calendar-summary-card strong,
+.calendar-week-card strong,
+.debt-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.2rem;
+  font-family: var(--font-display);
+}
+
+.calendar-week-card p,
+.debt-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .calendar-weekdays,
 .calendar-grid {
   padding: 0 28px 28px;
@@ -704,6 +777,13 @@ textarea {
   padding: 20px;
 }
 
+.cloud-box-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: start;
+}
+
 .cloud-box h3 {
   margin: 0;
   font-family: var(--font-display);
@@ -771,6 +851,49 @@ textarea {
   display: block;
   margin-top: 6px;
   font-size: 1.05rem;
+}
+
+.activity-log {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.activity-entry {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(19, 35, 29, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.activity-entry.warning {
+  background: rgba(217, 109, 48, 0.08);
+}
+
+.activity-entry.critical {
+  background: rgba(180, 63, 40, 0.1);
+}
+
+.activity-entry.success {
+  background: rgba(32, 108, 79, 0.08);
+}
+
+.activity-entry-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.activity-entry-head span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.activity-entry p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .chart-card {
@@ -860,6 +983,13 @@ textarea {
   margin-top: 14px;
 }
 
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .badge {
   padding: 7px 10px;
   border-radius: 999px;
@@ -892,6 +1022,10 @@ textarea {
 
 .cards-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.shared-debt-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .table-wrap {
@@ -1015,7 +1149,10 @@ svg {
   .cards-grid,
   .stats-grid,
   .alerts-grid,
-  .contributors {
+  .contributors,
+  .calendar-summary,
+  .calendar-week-totals,
+  .shared-debt-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1095,6 +1232,12 @@ svg {
   .calendar-toolbar-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .cloud-box-head,
+  .activity-entry-head {
+    flex-direction: column;
+    align-items: start;
   }
 
   .calendar-grid {

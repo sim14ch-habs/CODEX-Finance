@@ -1,5 +1,6 @@
-const STORAGE_KEY = "budget-duo-v2";
+﻿const STORAGE_KEY = "budget-duo-v2";
 const LOCAL_BACKUP_STORAGE_KEY = "budget-duo-v2-local-backup";
+const UNDO_STACK_STORAGE_KEY = "budget-duo-v2-undo-stack";
 const ACCOUNT_IDS = {
   partnerOne: "account_partner_one",
   partnerTwo: "account_partner_two",
@@ -19,6 +20,8 @@ const ACCOUNT_STATUS_LABELS = {
   active: "Actif",
   closed: "Fermé",
 };
+const ACTIVITY_LOG_LIMIT = 60;
+const UNDO_STACK_LIMIT = 20;
 
 const DEFAULT_STATE = {
   household: {
@@ -26,7 +29,7 @@ const DEFAULT_STATE = {
     partnerOne: "Simon",
     partnerTwo: "Geneviève",
     currency: "CAD",
-    currentBalance: 998,
+    currentBalance: 1298,
     projectionMonths: 6,
     safetyBuffer: 1500,
   },
@@ -55,11 +58,19 @@ const DEFAULT_STATE = {
       status: "active",
       balance: 0,
     },
+    {
+      id: "account_simon_emergency_fund",
+      owner: "Fonds d'urgence",
+      holder: ACCOUNT_HOLDERS.partnerOne,
+      kind: "savings",
+      status: "active",
+      balance: 300,
+    },
   ],
   paychecks: [
     {
       id: "pay_simon_abb",
-      owner: "Simon",
+      owner: "Fonds d'urgence",
       label: "Paie ABB",
       amount: 1988,
       frequency: "biweekly",
@@ -182,8 +193,10 @@ const DEFAULT_STATE = {
       targetDate: "2026-09-01",
     },
   ],
+  sharedExpenses: [],
   transactions: [],
   transfers: [],
+  activityLog: [],
 };
 
 const FREQUENCY_LABELS = {
@@ -197,6 +210,16 @@ const TYPE_LABELS = {
   income: "Revenu",
   expense: "Dépense",
   saving: "Épargne",
+};
+
+const COLLECTION_LABELS = {
+  paychecks: "paie",
+  bills: "facture",
+  savingsGoals: "objectif d'épargne",
+  sharedExpenses: "dépense partagée",
+  transactions: "mouvement",
+  transfers: "virement",
+  accounts: "compte",
 };
 
 const CLOUD_SYNC_DELAY_MS = 500;
@@ -263,7 +286,11 @@ function loadState() {
 function sanitizeState(input) {
   const household = { ...cloneDefaults().household, ...(input.household || {}) };
   const referencedAccountSeeds = collectReferencedAccountSeeds(input, household);
-  const accounts = sanitizeAccounts(input.accounts, household, household.currentBalance, referencedAccountSeeds);
+  let accounts = sanitizeAccounts(input.accounts, household, household.currentBalance, referencedAccountSeeds);
+  const savingsAccountSeeds = buildSavingsGoalAccountSeeds(input.savingsGoals || [], household, accounts);
+  if (savingsAccountSeeds.length) {
+    accounts = sanitizeAccounts([...accounts, ...savingsAccountSeeds], household, household.currentBalance, []);
+  }
   return {
     household: {
       ...household,
@@ -279,11 +306,17 @@ function sanitizeState(input) {
     savingsGoals: Array.isArray(input.savingsGoals)
       ? input.savingsGoals.map((item) => sanitizeSavingsGoal(item, household, accounts))
       : [],
+    sharedExpenses: Array.isArray(input.sharedExpenses)
+      ? input.sharedExpenses.map((item) => sanitizeSharedExpense(item, household, accounts))
+      : [],
     transactions: Array.isArray(input.transactions)
       ? input.transactions.map((item) => sanitizeOwnedItem(item, household, accounts))
       : [],
     transfers: Array.isArray(input.transfers)
       ? input.transfers.map((item) => sanitizeTransfer(item, household, accounts))
+      : [],
+    activityLog: Array.isArray(input.activityLog)
+      ? input.activityLog.map(sanitizeActivityLogEntry).filter(Boolean).slice(0, ACTIVITY_LOG_LIMIT)
       : [],
   };
 }
@@ -308,6 +341,9 @@ function bindEvents() {
   $("savingsForm").addEventListener("submit", (event) =>
     upsertCollection(event, "savingsGoals", readSavingsForm)
   );
+  $("sharedExpenseForm").addEventListener("submit", (event) =>
+    upsertCollection(event, "sharedExpenses", readSharedExpenseForm)
+  );
   $("transactionForm").addEventListener("submit", (event) =>
     upsertCollection(event, "transactions", readTransactionForm)
   );
@@ -321,7 +357,12 @@ function bindEvents() {
   });
 
   $("loadDemoBtn").addEventListener("click", () => {
+    pushUndoSnapshot("Avant chargement des données de démo");
     state = createDemoState();
+    recordActivity(
+      "Données de démo chargées",
+      "Le budget a été remplacé par la base d'exemple pour tester rapidement l'interface."
+    );
     persistState();
     renderAll();
   });
@@ -331,7 +372,12 @@ function bindEvents() {
       return;
     }
 
+    pushUndoSnapshot("Avant réinitialisation du budget");
     state = cloneDefaults();
+    recordActivity(
+      "Budget réinitialisé",
+      "Toutes les données locales ont été remises à l'état de départ sur cet appareil."
+    );
     persistState();
     renderAll();
   });
@@ -340,6 +386,7 @@ function bindEvents() {
   $("importBtn").addEventListener("click", () => $("importInput").click());
   $("importInput").addEventListener("change", importState);
   document.addEventListener("click", handleTableActions);
+  document.addEventListener("click", handleQuickActionClicks);
 
   $("cloudAuthForm").addEventListener("submit", handleCloudAuthSubmit);
   $("cloudCreateForm").addEventListener("submit", handleCreateHouseholdSubmit);
@@ -351,6 +398,7 @@ function bindEvents() {
     void saveBudgetToCloud(true);
   });
   $("cloudRestoreLocalBtn").addEventListener("click", restoreLocalBackup);
+  $("undoLastBtn").addEventListener("click", undoLastLocalChange);
   $("cloudSignOutBtn").addEventListener("click", () => {
     void signOutFromCloud();
   });
@@ -362,6 +410,8 @@ function bindEvents() {
   });
   window.addEventListener("resize", renderMobileSections);
   $("savingsForm").elements.scope.addEventListener("change", updateSavingsFormOwnership);
+  $("savingsForm").elements.owner.addEventListener("change", syncSavingsCurrentAmountField);
+  $("goalPlannerForm").elements.owner.addEventListener("change", syncGoalPlannerCurrentAmountField);
   $("goalPlannerUseBtn").addEventListener("click", applyGoalPlannerToSavings);
   $("calendarPrevBtn").addEventListener("click", () => {
     calendarUiState.monthCursor = addMonthsClamped(calendarUiState.monthCursor, -1);
@@ -383,6 +433,7 @@ function saveHousehold(event) {
   event.preventDefault();
   const formData = new FormData(event.currentTarget);
   const previousHousehold = { ...state.household };
+  pushUndoSnapshot("Avant mise à jour du foyer");
   const renameRules = [
     {
       id: ACCOUNT_IDS.partnerOne,
@@ -467,6 +518,10 @@ function saveHousehold(event) {
     collectReferencedAccountSeeds(state, state.household)
   );
   syncCurrentBalance();
+  recordActivity(
+    "Foyer mis à jour",
+    `${state.household.householdName} • ${state.household.partnerOne} et ${state.household.partnerTwo} • horizon ${state.household.projectionMonths} mois`
+  );
   persistState();
   renderAll();
 }
@@ -479,12 +534,23 @@ function upsertCollection(event, key, reader) {
   }
 
   const index = state[key].findIndex((entry) => entry.id === item.id);
+  pushUndoSnapshot(
+    index >= 0
+      ? `Avant modification ${COLLECTION_LABELS[key] || "élément"}`
+      : `Avant ajout ${COLLECTION_LABELS[key] || "élément"}`
+  );
   if (index >= 0) {
     state[key][index] = item;
   } else {
     state[key].unshift(item);
   }
 
+  recordActivity(
+    index >= 0
+      ? `${COLLECTION_LABELS[key] || "Entrée"} mise à jour`
+      : `${COLLECTION_LABELS[key] || "Entrée"} ajoutée`,
+    buildCollectionActivityDetail(key, item)
+  );
   persistState();
   resetForm(event.currentTarget.id);
   renderAll();
@@ -511,6 +577,7 @@ function saveAccount(event) {
   }
 
   const index = state.accounts.findIndex((entry) => entry.id === account.id);
+  pushUndoSnapshot(index >= 0 ? "Avant modification du compte" : "Avant ajout du compte");
   if (index >= 0) {
     const previous = state.accounts[index];
     state.accounts[index] = {
@@ -529,6 +596,10 @@ function saveAccount(event) {
     collectReferencedAccountSeeds(state, state.household)
   );
   syncCurrentBalance();
+  recordActivity(
+    index >= 0 ? "Compte mis à jour" : "Compte ajouté",
+    `${account.owner} • ${formatAccountHolder(account.holder)} • ${formatCurrency(account.balance)}`
+  );
   persistState();
   resetForm(event.currentTarget.id);
   renderAll();
@@ -621,7 +692,12 @@ function mergeStarterBills() {
     return;
   }
 
+  pushUndoSnapshot("Avant fusion des dépenses Simon");
   state.bills = [...state.bills, ...missingBills];
+  recordActivity(
+    "Dépenses Simon ajoutées",
+    `${missingBills.length} facture${missingBills.length > 1 ? "s" : ""} ajoutée${missingBills.length > 1 ? "s" : ""} au compte ${owner}.`
+  );
   persistState();
   renderAll();
   window.alert(`${missingBills.length} dépenses ont été ajoutées au compte ${owner}.`);
@@ -633,9 +709,16 @@ function readSavingsForm(formData) {
   const nextDate = textValue(formData.get("nextDate"));
   const targetDate = textValue(formData.get("targetDate"));
   const scope = readSavingsScope(formData);
+  const owner = readOwner(formData, scope === "shared" ? ACCOUNT_HOLDERS.shared : "personal");
+  const ownerAccount = getAccountByOwner(owner);
 
   if (!label) {
     window.alert("Merci de donner un nom à votre objectif d'épargne.");
+    return null;
+  }
+
+  if (!owner || !ownerAccount || ownerAccount.kind !== "savings") {
+    window.alert("Choisissez un compte d'épargne existant pour rattacher cet objectif.");
     return null;
   }
 
@@ -647,14 +730,41 @@ function readSavingsForm(formData) {
   return {
     id: textValue(formData.get("id")) || createId(),
     scope,
-    owner: readOwner(formData, scope === "shared" ? ACCOUNT_HOLDERS.shared : "personal"),
+    owner,
     label,
     targetAmount: parseAmount(formData.get("targetAmount")),
-    currentAmount: parseAmount(formData.get("currentAmount")),
+    currentAmount: parseAmount(ownerAccount.balance),
     contributionAmount,
     frequency: textValue(formData.get("frequency")) || "monthly",
     nextDate,
     targetDate,
+  };
+}
+
+function readSharedExpenseForm(formData) {
+  const label = textValue(formData.get("label"));
+  const amount = parseAmount(formData.get("amount"));
+  const date = textValue(formData.get("date"));
+  const paidBy = readOwnerWithFallback(textValue(formData.get("paidBy")), ACCOUNT_HOLDERS.partnerOne);
+  const payerAccount = getAccountByOwner(paidBy);
+  const payerHolder = payerAccount ? payerAccount.holder : ACCOUNT_HOLDERS.partnerOne;
+  const sharePercentRaw = parseAmount(formData.get("sharePercent"));
+  const sharePercent = Math.max(0, Math.min(sharePercentRaw || 50, 100));
+
+  if (!label || !amount || !date || !paidBy) {
+    window.alert("Merci de remplir la date, le compte payeur, le libellé et le montant.");
+    return null;
+  }
+
+  return {
+    id: textValue(formData.get("id")) || createId(),
+    label,
+    amount,
+    date,
+    paidBy,
+    payerHolder,
+    sharePercent: isSharedHolder(payerHolder) ? 0 : sharePercent,
+    notes: textValue(formData.get("notes")),
   };
 }
 
@@ -805,7 +915,7 @@ async function refreshCloudContext() {
     setCloudStatus(
       "auth",
       "Connectez-vous pour partager votre budget.",
-      "Un lien magique sera envoye par email."
+    "Un lien magique sera envoyé par email."
     );
     renderAll();
     return;
@@ -884,14 +994,14 @@ async function handleCloudAuthSubmit(event) {
 
   if (error) {
     console.error("Connexion email impossible:", error);
-    setCloudStatus("error", "Le lien magique n'a pas pu etre envoye.", error.message || "");
+    setCloudStatus("error", "Le lien magique n'a pas pu être envoyé.", error.message || "");
     renderAll();
     return;
   }
 
   setCloudStatus(
     "auth",
-    "Lien magique envoye.",
+    "Lien magique envoyé.",
     `Ouvrez l'email envoyé à ${email} sur votre appareil pour terminer la connexion.`
   );
   renderAll();
@@ -916,7 +1026,7 @@ async function handleCreateHouseholdSubmit(event) {
 
   if (error) {
     console.error("Creation du foyer impossible:", error);
-    setCloudStatus("error", "Le foyer cloud n'a pas pu etre cree.", error.message || "");
+    setCloudStatus("error", "Le foyer cloud n'a pas pu être créé.", error.message || "");
     renderAll();
     return;
   }
@@ -1159,7 +1269,7 @@ function renderCloudPanel() {
 
   const badgeLabels = {
     local: "Mode local",
-    auth: "Cloud pret",
+    auth: "Cloud prêt",
     syncing: "Synchronisation",
     connected: "Cloud actif",
     error: "Attention",
@@ -1198,6 +1308,108 @@ function renderCloudPanel() {
     ? `Dernière copie locale: ${formatCloudDateTime(localBackup.savedAt)}.${localBackup.reason ? ` ${localBackup.reason}` : ""}`
     : "Aucune copie locale de secours enregistrée pour le moment.";
   $("cloudRestoreLocalBtn").disabled = !localBackup;
+}
+
+function renderSyncGlance() {
+  const badge = $("syncGlanceBadge");
+  const title = $("syncGlanceTitle");
+  const detail = $("syncGlanceDetail");
+  if (!badge || !title || !detail) {
+    return;
+  }
+
+  const localSerialized = JSON.stringify(state);
+  const linkedHousehold = Boolean(cloudState.user && cloudState.household);
+  const hasPendingChanges =
+    linkedHousehold &&
+    !cloudState.syncInFlight &&
+    Boolean(cloudState.lastSerializedBudget) &&
+    localSerialized !== cloudState.lastSerializedBudget;
+
+  badge.className = "cloud-badge";
+  if (cloudState.status === "connected" && !hasPendingChanges) {
+    badge.classList.add("online");
+  } else if (cloudState.status === "error") {
+    badge.classList.add("error");
+  } else if (cloudState.syncInFlight || hasPendingChanges || cloudState.status === "syncing") {
+    badge.classList.add("syncing");
+  }
+
+  if (!cloudState.config) {
+    badge.textContent = "Mode local";
+    title.textContent = "Budget local uniquement";
+    detail.textContent = "Cette copie reste sur cet appareil tant qu'elle n'est pas reliée au cloud.";
+    return;
+  }
+
+  if (!cloudState.user || !cloudState.household) {
+    badge.textContent = "Cloud prêt";
+    title.textContent = "Connexion cloud disponible";
+    detail.textContent = "Connectez-vous et rejoignez le foyer pour voir les changements sur tous vos appareils.";
+    return;
+  }
+
+  if (cloudState.syncInFlight) {
+    badge.textContent = "Envoi cloud";
+    title.textContent = "Synchronisation en cours";
+    detail.textContent = "Les dernières modifications sont en train d'être envoyées au foyer partagé.";
+    return;
+  }
+
+  if (hasPendingChanges) {
+    badge.textContent = "Local à envoyer";
+    title.textContent = "Des changements attendent le cloud";
+    detail.textContent = "Cette page a des modifs locales plus récentes que la dernière synchro enregistrée.";
+    return;
+  }
+
+  badge.textContent = "Cloud à jour";
+  title.textContent = "Budget partagé synchronisé";
+  detail.textContent = cloudState.lastSyncAt
+    ? `Dernière synchro ${formatCloudDateTime(cloudState.lastSyncAt)}.`
+    : "Le budget cloud est actif.";
+}
+
+function renderActivityLog() {
+  const target = $("activityLogList");
+  const note = $("cloudSyncStatusNote");
+  const undoButton = $("undoLastBtn");
+  if (!target || !note || !undoButton) {
+    return;
+  }
+
+  const undoAvailable = getUndoAvailability();
+  undoButton.disabled = !undoAvailable;
+
+  const linkedHousehold = Boolean(cloudState.user && cloudState.household);
+  const hasPendingChanges =
+    linkedHousehold &&
+    Boolean(cloudState.lastSerializedBudget) &&
+    JSON.stringify(state) !== cloudState.lastSerializedBudget;
+  note.textContent = linkedHousehold
+    ? hasPendingChanges
+      ? "Cette version locale a des changements qui n'ont pas encore été confirmés dans le cloud."
+      : cloudState.lastSyncAt
+        ? `Cloud à jour au ${formatCloudDateTime(cloudState.lastSyncAt)}.`
+        : "Cloud connecté."
+    : "Le journal garde une trace simple des imports, changements et synchronisations utiles.";
+
+  const entries = (state.activityLog || []).slice(0, 10);
+  target.innerHTML = entries.length
+    ? entries
+        .map(
+          (entry) => `
+            <article class="activity-entry ${escapeHtml(entry.tone)}">
+              <div class="activity-entry-head">
+                <strong>${escapeHtml(entry.title)}</strong>
+                <span>${escapeHtml(formatCloudDateTime(entry.createdAt))}</span>
+              </div>
+              <p>${escapeHtml(entry.detail || "Aucun détail supplémentaire.")}</p>
+            </article>
+          `
+        )
+        .join("")
+    : `<article class="empty-state">Le journal apparaîtra ici dès qu'une action importante sera faite.</article>`;
 }
 
 function formatCloudDateTime(value) {
@@ -1262,7 +1474,12 @@ function restoreLocalBackup() {
     return;
   }
 
+  pushUndoSnapshot("Avant restauration locale");
   state = sanitizeState(snapshot.budgetState);
+  recordActivity(
+    "Copie locale restaurée",
+    "La dernière copie locale a été réappliquée sur cet appareil. Vérifie-la puis envoie-la au cloud si nécessaire."
+  );
   persistState({ skipCloud: true });
   setCloudStatus(
     cloudState.household ? "connected" : "local",
@@ -1274,6 +1491,118 @@ function restoreLocalBackup() {
   renderAll();
 }
 
+function readUndoStack() {
+  try {
+    const raw = window.localStorage.getItem(UNDO_STACK_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (error) {
+    console.error("Lecture de la pile d'annulation impossible:", error);
+    return [];
+  }
+}
+
+function writeUndoStack(stack) {
+  try {
+    window.localStorage.setItem(UNDO_STACK_STORAGE_KEY, JSON.stringify(stack.slice(0, UNDO_STACK_LIMIT)));
+  } catch (error) {
+    console.error("Écriture de la pile d'annulation impossible:", error);
+  }
+}
+
+function pushUndoSnapshot(label) {
+  const stack = readUndoStack();
+  stack.unshift({
+    id: createId(),
+    label: textValue(label) || "Modification",
+    savedAt: new Date().toISOString(),
+    budgetState: cloneStateSnapshot(state),
+  });
+  writeUndoStack(stack);
+}
+
+function getUndoAvailability() {
+  return readUndoStack().length > 0;
+}
+
+function undoLastLocalChange() {
+  const stack = readUndoStack();
+  const snapshot = stack.shift();
+  if (!snapshot || !snapshot.budgetState) {
+    window.alert("Aucune modification locale à annuler pour le moment.");
+    return;
+  }
+
+  writeUndoStack(stack);
+  state = sanitizeState(snapshot.budgetState);
+  recordActivity(
+    "Annulation locale",
+    `Retour à l'état sauvegardé le ${formatCloudDateTime(snapshot.savedAt)} (${snapshot.label}).`
+  );
+  persistState();
+  renderAll();
+}
+
+function cloneStateSnapshot(sourceState) {
+  return JSON.parse(JSON.stringify(sourceState));
+}
+
+function recordActivity(title, detail, options = {}) {
+  const entry = sanitizeActivityLogEntry({
+    id: createId(),
+    title,
+    detail,
+    createdAt: new Date().toISOString(),
+    tone: options.tone || "neutral",
+  });
+  if (!entry) {
+    return;
+  }
+
+  state.activityLog = [entry, ...(state.activityLog || [])].slice(0, ACTIVITY_LOG_LIMIT);
+}
+
+function getCollectionItemLabel(key, item) {
+  return textValue(item.label || item.owner || item.paidBy || item.fromOwner || "Sans libellé");
+}
+
+function getCollectionItemOwnerLabel(key, item) {
+  if (key === "sharedExpenses") {
+    return item.paidBy;
+  }
+  if (key === "transfers") {
+    return `${formatOwnerLabel(item.fromOwner)} -> ${formatOwnerLabel(item.toOwner)}`;
+  }
+  return item.owner;
+}
+
+function getCollectionItemAmount(key, item) {
+  if (key === "savingsGoals") {
+    return parseAmount(item.contributionAmount) || parseAmount(item.targetAmount);
+  }
+  if (key === "transactions") {
+    return Math.abs(transactionDelta(item));
+  }
+  return parseAmount(item.amount);
+}
+
+function buildCollectionActivityDetail(key, item) {
+  const ownerLabel = getCollectionItemOwnerLabel(key, item);
+  const amount = getCollectionItemAmount(key, item);
+  const bits = [getCollectionItemLabel(key, item)];
+  if (ownerLabel) {
+    bits.push(ownerLabel);
+  }
+  if (amount) {
+    bits.push(formatCurrency(amount));
+  }
+  if (item.date) {
+    bits.push(formatDate(item.date));
+  } else if (item.nextDate) {
+    bits.push(formatDate(item.nextDate));
+  }
+  return bits.join(" • ");
+}
+
 function renderAll() {
   populateHouseholdForm();
   renderBalanceLabels();
@@ -1281,13 +1610,17 @@ function renderAll() {
   renderOwnerSelects();
   seedFormDefaults();
   updateSavingsFormOwnership();
+  renderGoalPlannerOwnerOptions();
   renderCloudPanel();
+  renderSyncGlance();
+  renderActivityLog();
   renderGoalPlanner();
   renderStats();
   renderAlerts();
   renderProjection();
   renderCalendar();
   renderContributors();
+  renderSharedDebtCards();
   renderAccountsTable();
   renderTables();
   renderMobileSections();
@@ -1306,7 +1639,7 @@ function populateHouseholdForm() {
 function renderOwnerSelects() {
   document.querySelectorAll(".owner-select").forEach((select) => {
     const previous = select.value;
-    if (select.id === "savingsOwnerSelect") {
+    if (select.id === "savingsOwnerSelect" || select.name === "owner" && select.form && select.form.id === "goalPlannerForm") {
       return;
     }
     renderSelectOptions(select, getOwnerOptions(), previous);
@@ -1344,6 +1677,7 @@ function seedFormDefaults() {
     ["paycheckForm", "nextDate"],
     ["billForm", "nextDate"],
     ["savingsForm", "nextDate"],
+    ["sharedExpenseForm", "date"],
     ["transactionForm", "date"],
     ["transferForm", "date"],
     ["goalPlannerForm", "startDate"],
@@ -1435,6 +1769,69 @@ function syncTransferFormOwners(changedField = "") {
   toField.value = fallback || toField.value;
 }
 
+function getSavingsGoalOwnerOptions(scope, options = {}) {
+  const includeClosed = options.includeClosed === true;
+  const accounts = (includeClosed ? state.accounts : getActiveAccounts()).filter((account) => {
+    if (account.kind !== "savings") {
+      return false;
+    }
+    if (scope === "shared") {
+      return isSharedHolder(account.holder);
+    }
+    if (scope === "personal") {
+      return !isSharedHolder(account.holder);
+    }
+    return true;
+  });
+
+  return accounts.map((account) => ({
+    value: account.owner,
+    label: account.owner,
+  }));
+}
+
+function syncSavingsCurrentAmountField() {
+  const form = $("savingsForm");
+  if (!form || !form.elements.currentAmount) {
+    return;
+  }
+
+  const account = getAccountByOwner(form.elements.owner.value);
+  if (account && account.kind === "savings") {
+    form.elements.currentAmount.value = String(account.balance || 0);
+    form.elements.currentAmount.readOnly = true;
+    return;
+  }
+
+  form.elements.currentAmount.readOnly = false;
+}
+
+function syncGoalPlannerCurrentAmountField() {
+  const form = $("goalPlannerForm");
+  if (!form || !form.elements.currentAmount) {
+    return;
+  }
+
+  const account = getAccountByOwner(form.elements.owner.value);
+  if (account && account.kind === "savings") {
+    form.elements.currentAmount.value = String(account.balance || 0);
+    form.elements.currentAmount.readOnly = true;
+    return;
+  }
+
+  form.elements.currentAmount.readOnly = false;
+}
+
+function renderGoalPlannerOwnerOptions() {
+  const form = $("goalPlannerForm");
+  if (!form || !form.elements.owner) {
+    return;
+  }
+
+  renderSelectOptions(form.elements.owner, getSavingsGoalOwnerOptions(""), form.elements.owner.value);
+  syncGoalPlannerCurrentAmountField();
+}
+
 function updateSavingsFormOwnership() {
   const form = $("savingsForm");
   if (!form) {
@@ -1452,24 +1849,30 @@ function updateSavingsFormOwnership() {
   }
 
   if (scope === "shared") {
-    renderSelectOptions(ownerField, getOwnerOptions({ holder: ACCOUNT_HOLDERS.shared }), previousOwner);
+    renderSelectOptions(ownerField, getSavingsGoalOwnerOptions("shared"), previousOwner);
     ownerField.disabled = false;
     if (hint) {
-      hint.textContent = "Choisissez le compte commun à utiliser pour cette épargne, même si vous en avez plusieurs.";
+      hint.textContent = ownerField.options.length
+        ? "Choisissez le compte d'épargne commun qui porte cet objectif."
+        : "Créez d'abord un compte commun de type épargne pour lui rattacher un objectif.";
     }
+    syncSavingsCurrentAmountField();
     return;
   }
 
-  renderSelectOptions(ownerField, getOwnerOptions({ holder: "personal" }), previousOwner);
+  renderSelectOptions(ownerField, getSavingsGoalOwnerOptions("personal"), previousOwner);
   ownerField.disabled = false;
 
   if (!ownerField.value) {
-    ownerField.value = getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || getFirstActiveOwner() || "";
+    ownerField.value = (getSavingsGoalOwnerOptions("personal")[0] || {}).value || "";
   }
 
   if (hint) {
-    hint.textContent = "Choisissez le compte personnel qui porte cette épargne. Les comptes communs passent par le type Commune.";
+    hint.textContent = ownerField.options.length
+      ? "Choisissez le compte d'épargne personnel qui porte cet objectif."
+      : "Créez d'abord un compte personnel de type épargne pour lui rattacher un objectif.";
   }
+  syncSavingsCurrentAmountField();
 }
 
 function handleGoalPlannerSubmit(event) {
@@ -1640,6 +2043,19 @@ function collectAlerts() {
     }
   });
 
+  const debtSummary = computeSharedDebtSummary();
+  if (Math.abs(debtSummary.net) >= 250) {
+    alerts.push({
+      tone: Math.abs(debtSummary.net) >= 750 ? "warning" : "neutral",
+      label: "Partage",
+      title:
+        debtSummary.net > 0
+          ? `${state.household.partnerOne || "Moi"} doit ${formatCurrency(debtSummary.net)}`
+          : `${state.household.partnerTwo || "Geneviève"} doit ${formatCurrency(Math.abs(debtSummary.net))}`,
+      message: "Les dépenses partagées commencent à peser. Un virement de règlement pourrait clarifier les soldes.",
+    });
+  }
+
   return alerts.slice(0, 6);
 }
 
@@ -1649,6 +2065,7 @@ function renderStats() {
   const sharedAccounts = getAccountsByHolder(ACCOUNT_HOLDERS.shared);
   const sharedBalance = sumBy(sharedAccounts, (account) => account.balance || 0);
   const alerts = collectAlerts();
+  const debtSummary = computeSharedDebtSummary();
   const cards = [
     {
       label: "Solde total",
@@ -1692,6 +2109,17 @@ function renderStats() {
       note: alerts.length ? "Points à surveiller sur vos comptes et objectifs." : "Aucun signal bloquant pour l'instant.",
       tone: alerts.length ? "negative" : "positive",
     },
+    {
+      label: "Entre vous",
+      value: formatCurrency(Math.abs(debtSummary.net)),
+      note:
+        debtSummary.net > 0
+          ? `${state.household.partnerOne || "Moi"} doit ${state.household.partnerTwo || "Geneviève"}.`
+          : debtSummary.net < 0
+            ? `${state.household.partnerTwo || "Geneviève"} doit ${state.household.partnerOne || "Moi"}.`
+            : "Aucune dette interne en cours.",
+      tone: debtSummary.net === 0 ? "positive" : "",
+    },
   ];
 
   $("statsGrid").innerHTML = cards
@@ -1716,6 +2144,7 @@ function renderTables() {
   renderTable("paychecksTable", state.paychecks, 6, renderPaycheckRow);
   renderTable("billsTable", state.bills, 7, renderBillRow);
   renderTable("savingsTable", state.savingsGoals, 7, renderSavingsRow);
+  renderTable("sharedExpensesTable", state.sharedExpenses.slice().sort(sortByDateDesc), 7, renderSharedExpenseRow);
   renderTable("transfersTable", state.transfers.slice().sort(sortByDateDesc), 6, renderTransferRow);
   renderTable("transactionsTable", state.transactions.slice().sort(sortByDateDesc), 6, renderTransactionRow);
 }
@@ -1795,7 +2224,7 @@ function renderBillRow(item) {
 }
 
 function renderSavingsRow(item) {
-  const currentAmount = item.currentAmount || 0;
+  const currentAmount = getSavingsGoalCurrentAmount(item);
   const targetAmount = item.targetAmount || 0;
   const progress = targetAmount ? Math.min((currentAmount / targetAmount) * 100, 100) : 0;
   const contributionLabel = item.contributionAmount
@@ -1853,6 +2282,32 @@ function renderTransferRow(item) {
   `;
 }
 
+function renderSharedExpenseRow(item) {
+  const debt = calculateSharedExpenseDebt(item);
+  const shareLabel = isSharedHolder(item.payerHolder)
+    ? "Compte commun"
+    : `${Math.round(parseAmount(item.sharePercent))} % remboursé`;
+  const debtLabel = debt
+    ? `${debt.fromOwner} -> ${debt.toOwner}`
+    : "Aucune dette";
+  const debtAmount = debt ? formatCurrency(debt.amount) : "-";
+
+  return `
+    <tr>
+      <td>${escapeHtml(formatDate(item.date))}</td>
+      <td>${escapeHtml(formatOwnerLabel(item.paidBy))}</td>
+      <td>${escapeHtml(shareLabel)}</td>
+      <td>${escapeHtml(item.label)}</td>
+      <td class="negative">${escapeHtml(formatCurrency(item.amount))}</td>
+      <td>
+        <div>${escapeHtml(debtLabel)}</div>
+        <small>${escapeHtml(debtAmount)}</small>
+      </td>
+      <td>${renderActions("sharedExpenses", item.id)}</td>
+    </tr>
+  `;
+}
+
 function renderActions(collection, id) {
   return `
     <div class="table-actions">
@@ -1889,13 +2344,91 @@ function handleTableActions(event) {
   }
 
   if (action === "delete") {
+    const deletedItem = state[collection].find((item) => item.id === id);
+    pushUndoSnapshot(`Avant suppression ${COLLECTION_LABELS[collection] || "élément"}`);
     state[collection] = state[collection].filter((item) => item.id !== id);
+    if (deletedItem) {
+      recordActivity(
+        `${COLLECTION_LABELS[collection] || "Entrée"} supprimée`,
+        buildCollectionActivityDetail(collection, deletedItem),
+        { tone: "warning" }
+      );
+    }
     persistState();
     renderAll();
     return;
   }
 
   editItem(collection, id);
+}
+
+function handleQuickActionClicks(event) {
+  const button = event.target.closest("[data-quick-action]");
+  if (!button) {
+    return;
+  }
+
+  const action = button.dataset.quickAction;
+  const owner = button.dataset.owner || "";
+  if (!action || !owner) {
+    return;
+  }
+
+  if (action === "bill") {
+    resetForm("billForm");
+    $("billForm").elements.owner.value = owner;
+    focusForm("billForm", "label", "entries");
+    return;
+  }
+
+  if (action === "transfer") {
+    resetForm("transferForm");
+    $("transferForm").elements.fromOwner.value = owner;
+    syncTransferFormOwners("fromOwner");
+    focusForm("transferForm", "amount", "entries");
+    return;
+  }
+
+  if (action === "saving") {
+    const account = getAccountByOwner(owner);
+    if (!account || account.kind !== "savings") {
+      resetForm("accountForm");
+      $("accountForm").elements.holder.value = account ? account.holder : ACCOUNT_HOLDERS.partnerOne;
+      $("accountForm").elements.kind.value = "savings";
+      focusForm("accountForm", "owner", "accounts");
+      return;
+    }
+
+    resetForm("savingsForm");
+    $("savingsForm").elements.scope.value = isSharedOwner(owner) ? "shared" : "personal";
+    updateSavingsFormOwnership();
+    $("savingsForm").elements.owner.value = owner;
+    syncSavingsCurrentAmountField();
+    focusForm("savingsForm", "label", "planning");
+    return;
+  }
+
+  if (action === "sharedExpense") {
+    resetForm("sharedExpenseForm");
+    $("sharedExpenseForm").elements.paidBy.value = owner;
+    focusForm("sharedExpenseForm", "label", "entries");
+  }
+}
+
+function focusForm(formId, fieldName, mobileSection) {
+  const form = $(formId);
+  if (!form) {
+    return;
+  }
+
+  if (mobileSection) {
+    mobileUiState.section = mobileSection;
+    renderMobileSections();
+  }
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (fieldName && form.elements[fieldName]) {
+    form.elements[fieldName].focus();
+  }
 }
 
 function editItem(collection, id) {
@@ -1909,6 +2442,7 @@ function editItem(collection, id) {
     paychecks: "paycheckForm",
     bills: "billForm",
     savingsGoals: "savingsForm",
+    sharedExpenses: "sharedExpenseForm",
     transfers: "transferForm",
     transactions: "transactionForm",
   };
@@ -1931,6 +2465,9 @@ function editItem(collection, id) {
   if (collection === "transfers") {
     syncTransferFormOwners();
   }
+  if (collection === "sharedExpenses" && form.elements.paidBy) {
+    form.elements.paidBy.value = item.paidBy;
+  }
   form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1942,7 +2479,9 @@ function toggleAccountStatus(id) {
 
   const account = state.accounts[index];
   if (account.status === "closed") {
+  pushUndoSnapshot("Avant réouverture du compte");
     state.accounts[index] = { ...account, status: "active" };
+    recordActivity("Compte rouvert", `${account.owner} est de nouveau disponible dans les formulaires et projections.`);
     persistState();
     renderAll();
     return;
@@ -1958,7 +2497,9 @@ function toggleAccountStatus(id) {
     return;
   }
 
+  pushUndoSnapshot("Avant fermeture du compte");
   state.accounts[index] = { ...account, status: "closed" };
+  recordActivity("Compte fermé", `${account.owner} a été retiré des sélections actives.`);
   persistState();
   renderAll();
 }
@@ -2006,7 +2547,7 @@ function renderProjection() {
             <li>
               <div>
                 <strong>${escapeHtml(event.label)}</strong>
-                <small>${escapeHtml(formatOwnerLabel(event.owner))} • ${escapeHtml(formatDate(event.date))}</small>
+        <small>${escapeHtml(formatOwnerLabel(event.owner))} • ${escapeHtml(formatDate(event.date))}</small>
               </div>
               <strong class="${event.delta >= 0 ? "positive" : "negative"}">${escapeHtml(formatSignedCurrency(event.delta))}</strong>
             </li>
@@ -2021,16 +2562,19 @@ function renderProjection() {
 function renderCalendar() {
   const grid = $("calendarGrid");
   const label = $("calendarMonthLabel");
-  if (!grid || !label) {
+  const summaryTarget = $("calendarSummaryCards");
+  const weekTotalsTarget = $("calendarWeekTotals");
+  if (!grid || !label || !summaryTarget || !weekTotalsTarget) {
     return;
   }
 
   const monthStart = startOfMonth(calendarUiState.monthCursor || new Date());
   const monthEnd = endOfMonth(monthStart);
   const gridStart = startOfCalendarGrid(monthStart);
+  const events = collectCalendarEvents(monthStart, monthEnd);
   const eventsByDate = new Map();
 
-  collectCalendarEvents(monthStart, monthEnd).forEach((event) => {
+  events.forEach((event) => {
     const key = formatInputDate(event.date);
     if (!eventsByDate.has(key)) {
       eventsByDate.set(key, []);
@@ -2041,6 +2585,7 @@ function renderCalendar() {
   label.textContent = monthStart.toLocaleDateString("fr-CA", { month: "long", year: "numeric" });
 
   const days = [];
+  const weekTotals = [];
   let cursor = gridStart;
   for (let index = 0; index < 42; index += 1) {
     const key = formatInputDate(cursor);
@@ -2061,10 +2606,58 @@ function renderCalendar() {
         ${showDayTotal ? `<p class="calendar-day-total ${dayTotalTone}">Total du jour ${escapeHtml(formatSignedCurrency(dayTotal))}</p>` : ""}
       </article>
     `);
+    if ((index + 1) % 7 === 0) {
+      const weekStart = addDays(cursor, -6);
+      const weekEvents = [];
+      for (let dayOffset = 0; dayOffset < 7; dayOffset += 1) {
+        const dayKey = formatInputDate(addDays(weekStart, dayOffset));
+        weekEvents.push(...(eventsByDate.get(dayKey) || []));
+      }
+      weekTotals.push({
+        start: weekStart,
+        end: cursor,
+        net: roundCurrency(sumBy(weekEvents, getCalendarDayDelta)),
+      });
+    }
     cursor = addDays(cursor, 1);
   }
 
   grid.innerHTML = days.join("");
+  const monthlyIncome = roundCurrency(sumBy(events.filter((event) => (event.delta || 0) > 0), (event) => event.delta || 0));
+  const monthlyOutflows = roundCurrency(
+    Math.abs(sumBy(events.filter((event) => (event.delta || 0) < 0), (event) => event.delta || 0))
+  );
+  const monthlyNet = roundCurrency(sumBy(events, getCalendarDayDelta));
+  const sharedCount = state.sharedExpenses.filter((item) => {
+    const date = parseDate(item.date);
+    return date >= monthStart && date <= monthEnd;
+  }).length;
+  summaryTarget.innerHTML = [
+    { label: "Entrées du mois", value: formatCurrency(monthlyIncome) },
+    { label: "Sorties du mois", value: formatCurrency(monthlyOutflows) },
+    { label: "Net du mois", value: monthlyNet >= 0 ? formatSignedCurrency(monthlyNet) : formatSignedCurrency(monthlyNet) },
+    { label: "Partagées visibles", value: `${sharedCount}` },
+  ]
+    .map(
+      (card) => `
+        <article class="calendar-summary-card">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${escapeHtml(String(card.value))}</strong>
+        </article>
+      `
+    )
+    .join("");
+  weekTotalsTarget.innerHTML = weekTotals
+    .map(
+      (week, index) => `
+        <article class="calendar-week-card">
+          <span>Semaine ${index + 1}</span>
+          <strong class="${week.net < 0 ? "negative" : week.net > 0 ? "positive" : ""}">${escapeHtml(formatSignedCurrency(week.net))}</strong>
+          <p>${escapeHtml(formatDate(week.start))} au ${escapeHtml(formatDate(week.end))}</p>
+        </article>
+      `
+    )
+    .join("");
 }
 
 function collectCalendarEvents(start, end) {
@@ -2079,6 +2672,21 @@ function collectCalendarEvents(start, end) {
   state.savingsGoals.forEach((item) => {
     if (item.contributionAmount > 0 && item.nextDate) {
       events.push(...expandRecurring(item, "saving", -item.contributionAmount, start, end));
+    }
+  });
+  state.sharedExpenses.forEach((item) => {
+    const date = parseDate(item.date);
+    if (date >= start && date <= end) {
+      const debt = calculateSharedExpenseDebt(item);
+      events.push({
+        id: item.id,
+        label: item.label,
+        owner: item.paidBy,
+        date,
+        delta: -Math.abs(item.amount || 0),
+        kind: "shared_expense",
+        meta: debt ? `${debt.fromOwner} doit ${formatCurrency(debt.amount)}` : "Dépense commune",
+      });
     }
   });
   state.transactions.forEach((item) => {
@@ -2119,7 +2727,7 @@ function renderCalendarEvent(event) {
     : formatSignedCurrency(event.delta);
   const metaLabel = event.kind === "transfer"
     ? `${formatOwnerLabel(event.fromOwner)} → ${formatOwnerLabel(event.toOwner)}`
-    : formatOwnerLabel(event.owner);
+    : event.meta || formatOwnerLabel(event.owner);
 
   return `
     <div class="calendar-event ${tone}">
@@ -2151,11 +2759,65 @@ function renderContributors() {
                 <span class="badge">Net ${escapeHtml(formatCurrency(card.net))}</span>
                 <span class="badge">Point bas ${escapeHtml(formatCurrency(card.lowestBalance))}</span>
               </div>
+              <div class="quick-actions">
+                <button class="table-button edit" type="button" data-quick-action="bill" data-owner="${escapeHtml(card.owner)}">+ Facture</button>
+                <button class="table-button edit" type="button" data-quick-action="transfer" data-owner="${escapeHtml(card.owner)}">+ Virement</button>
+                <button class="table-button edit" type="button" data-quick-action="saving" data-owner="${escapeHtml(card.owner)}">+ Épargne</button>
+                ${isSharedOwner(card.owner) ? "" : `<button class="table-button edit" type="button" data-quick-action="sharedExpense" data-owner="${escapeHtml(card.owner)}">+ Partagée</button>`}
+              </div>
             </article>
           `
         )
         .join("")
     : `<article class="empty-state">Ajoute au moins un compte actif pour suivre les projections par compte.</article>`;
+}
+
+function renderSharedDebtCards() {
+  const target = $("sharedDebtCards");
+  if (!target) {
+    return;
+  }
+
+  const summary = computeSharedDebtSummary();
+  const partnerOne = state.household.partnerOne || "Moi";
+  const partnerTwo = state.household.partnerTwo || "Geneviève";
+  const cards = [
+    {
+      label: `${partnerOne} doit`,
+      value: formatCurrency(summary.partnerOneOwes),
+      note: `Total des dépenses partagées payées par ${partnerTwo}.`,
+    },
+    {
+      label: `${partnerTwo} doit`,
+      value: formatCurrency(summary.partnerTwoOwes),
+      note: `Total des dépenses partagées payées par ${partnerOne}.`,
+    },
+    {
+      label: "Solde net entre vous",
+      value:
+        summary.net > 0
+          ? `${partnerOne} doit ${formatCurrency(summary.net)}`
+          : summary.net < 0
+            ? `${partnerTwo} doit ${formatCurrency(Math.abs(summary.net))}`
+            : "Vous êtes à jour",
+      note:
+        summary.net === 0
+          ? "Les dépenses partagées se compensent en ce moment."
+          : "Ce solde peut ensuite être réglé par un virement réel si vous voulez solder les comptes.",
+    },
+  ];
+
+  target.innerHTML = cards
+    .map(
+      (card) => `
+        <article class="debt-card fade-in">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${escapeHtml(card.value)}</strong>
+          <p>${escapeHtml(card.note)}</p>
+        </article>
+      `
+    )
+    .join("");
 }
 
 function computeMetrics() {
@@ -2242,6 +2904,25 @@ function buildProjection(months, ownerFilter = null) {
     if (item.contributionAmount > 0 && item.nextDate) {
       events.push(...expandRecurring(item, "saving", -item.contributionAmount, start, end));
     }
+  });
+  state.sharedExpenses.forEach((item) => {
+    const date = parseDate(item.date);
+    if (date < start || date > end) {
+      return;
+    }
+    if (ownerFilter && item.paidBy !== ownerFilter) {
+      return;
+    }
+    const debt = calculateSharedExpenseDebt(item);
+    events.push({
+      id: item.id,
+      label: item.label,
+      owner: item.paidBy,
+      date,
+      delta: -Math.abs(item.amount || 0),
+      kind: "shared_expense",
+      meta: debt ? `${debt.fromOwner} doit ${formatCurrency(debt.amount)}` : "Dépense commune",
+    });
   });
   state.transactions.filter(matchesOwner).forEach((item) => {
     const date = parseDate(item.date);
@@ -2333,7 +3014,7 @@ function compareEvents(a, b) {
   if (a.date.getTime() !== b.date.getTime()) {
     return a.date - b.date;
   }
-  const order = { income: 0, transfer: 1, saving: 2, bill: 3 };
+  const order = { income: 0, transfer: 1, saving: 2, shared_expense: 3, bill: 4 };
   return (order[a.kind] ?? 9) - (order[b.kind] ?? 9);
 }
 
@@ -2424,7 +3105,9 @@ function importState(event) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
+      pushUndoSnapshot(`Avant import JSON (${file.name})`);
       state = sanitizeState(JSON.parse(reader.result));
+      recordActivity("Import JSON", `Le budget local a été remplacé depuis ${file.name}.`);
       persistState();
       renderAll();
     } catch (error) {
@@ -2437,15 +3120,21 @@ function importState(event) {
 
 function buildGoalPlannerResult(formData) {
   const label = textValue(formData.get("label")) || "Nouveau but";
-  const owner = textValue(formData.get("owner")) || getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || getFirstActiveOwner() || "Moi";
+  const owner = textValue(formData.get("owner")) || (getSavingsGoalOwnerOptions("")[0] || {}).value || "";
+  const ownerAccount = getAccountByOwner(owner);
   const targetAmount = parseAmount(formData.get("targetAmount"));
-  const currentAmount = parseAmount(formData.get("currentAmount"));
+  const currentAmount = ownerAccount && ownerAccount.kind === "savings" ? parseAmount(ownerAccount.balance) : parseAmount(formData.get("currentAmount"));
   const startDate = textValue(formData.get("startDate"));
   const targetDate = textValue(formData.get("targetDate"));
   const frequency = textValue(formData.get("frequency")) || "monthly";
 
   if (!targetAmount || !startDate || !targetDate) {
     window.alert("Ajoutez au minimum le montant visé, la date de début et la date cible.");
+    return null;
+  }
+
+  if (!owner || !ownerAccount || ownerAccount.kind !== "savings") {
+    window.alert("Choisissez un compte d'épargne pour planifier un objectif.");
     return null;
   }
 
@@ -2532,7 +3221,7 @@ function evaluateGoalPlan(goal) {
     return null;
   }
 
-  const remainingAmount = Math.max(parseAmount(goal.targetAmount) - parseAmount(goal.currentAmount), 0);
+  const remainingAmount = Math.max(parseAmount(goal.targetAmount) - getSavingsGoalCurrentAmount(goal), 0);
   const requiredContribution = remainingAmount > 0 ? roundUpCurrency(remainingAmount / periods) : 0;
   const currentContribution = parseAmount(goal.contributionAmount);
 
@@ -2547,7 +3236,7 @@ function evaluateGoalPlan(goal) {
 function estimateGoalCompletionDate(goal) {
   const contributionAmount = parseAmount(goal.contributionAmount);
   const targetAmount = parseAmount(goal.targetAmount);
-  let currentAmount = parseAmount(goal.currentAmount);
+  let currentAmount = getSavingsGoalCurrentAmount(goal);
   if (currentAmount >= targetAmount) {
     return textValue(goal.targetDate) || formatInputDate(new Date());
   }
@@ -2756,6 +3445,9 @@ function collectReferencedAccountSeeds(input, household) {
   (input.transactions || []).forEach((item) => {
     pushSeed(item.owner, inferHolderFromOwner(item.owner, household));
   });
+  (input.sharedExpenses || []).forEach((item) => {
+    pushSeed(item.paidBy || item.owner, inferHolderFromOwner(item.paidBy || item.owner, household));
+  });
   (input.savingsGoals || []).forEach((item) => {
     const shared = textValue(item.scope) === "shared" || textValue(item.owner) === getSharedOwnerValueFromHousehold(household);
     pushSeed(item.owner, shared ? ACCOUNT_HOLDERS.shared : inferHolderFromOwner(item.owner, household), "savings");
@@ -2851,27 +3543,38 @@ function sanitizeOwnedItem(item, household, accounts) {
 
 function sanitizeSavingsGoal(item, household, accounts) {
   const requestedShared = textValue(item.scope) === "shared";
-  const owner = sanitizeOwnerLabel(
+  const requestedOwner = sanitizeOwnerLabel(
     item.owner,
     household,
     accounts,
     requestedShared ? ACCOUNT_HOLDERS.shared : ACCOUNT_HOLDERS.partnerOne
   );
+  const fallbackLabelAccount = getAccountByOwner(textValue(item.label), accounts);
+  const requestedOwnerAccount = getAccountByOwner(requestedOwner, accounts);
+  const ownerAccount =
+    requestedOwnerAccount && requestedOwnerAccount.kind === "savings"
+      ? requestedOwnerAccount
+      : fallbackLabelAccount && fallbackLabelAccount.kind === "savings"
+        ? fallbackLabelAccount
+        : null;
+  const owner = ownerAccount
+    ? ownerAccount.owner
+    : requestedOwner ||
+      (requestedShared
+        ? getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, accounts, { includeClosed: true })
+        : getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne, accounts, { includeClosed: true })) ||
+      household.partnerOne ||
+      "Moi";
   const scope = requestedShared || isSharedOwner(owner, accounts) ? "shared" : "personal";
+  const currentAmount = ownerAccount ? parseAmount(ownerAccount.balance) : parseAmount(item.currentAmount);
 
   return {
     id: textValue(item.id) || createId(),
     scope,
-    owner:
-      owner ||
-      (scope === "shared"
-        ? getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, accounts, { includeClosed: true })
-        : getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne, accounts, { includeClosed: true })) ||
-      household.partnerOne ||
-      "Moi",
+    owner,
     label: textValue(item.label),
     targetAmount: parseAmount(item.targetAmount),
-    currentAmount: parseAmount(item.currentAmount),
+    currentAmount,
     contributionAmount: parseAmount(item.contributionAmount),
     frequency: textValue(item.frequency) || "monthly",
     nextDate: textValue(item.nextDate),
@@ -2890,6 +3593,66 @@ function sanitizeTransfer(item, household, accounts) {
     date: textValue(item.date),
     notes: textValue(item.notes),
   };
+}
+
+function sanitizeSharedExpense(item, household, accounts) {
+  const paidBy = sanitizeOwnerLabel(item.paidBy || item.owner, household, accounts, ACCOUNT_HOLDERS.partnerOne);
+  const payerAccount = getAccountByOwner(paidBy, accounts);
+  const payerHolder = payerAccount ? payerAccount.holder : sanitizeAccountHolder(item.payerHolder, household, "", "", paidBy);
+  const defaultShare = isSharedHolder(payerHolder) ? 0 : 50;
+
+  return {
+    id: textValue(item.id) || createId(),
+    label: textValue(item.label),
+    amount: parseAmount(item.amount),
+    date: textValue(item.date),
+    paidBy,
+    payerHolder,
+    sharePercent: Math.max(0, Math.min(parseAmount(item.sharePercent) || defaultShare, 100)),
+    notes: textValue(item.notes),
+  };
+}
+
+function sanitizeActivityLogEntry(entry) {
+  const title = textValue(entry && entry.title);
+  if (!title) {
+    return null;
+  }
+
+  const tone = textValue(entry.tone) || "neutral";
+  return {
+    id: textValue(entry.id) || createId(),
+    title,
+    detail: textValue(entry.detail),
+    createdAt: textValue(entry.createdAt) || new Date().toISOString(),
+    tone: tone === "warning" || tone === "critical" || tone === "success" ? tone : "neutral",
+  };
+}
+
+function buildSavingsGoalAccountSeeds(goals, household, accounts) {
+  return (goals || []).reduce((seeds, goal) => {
+    const label = textValue(goal.label);
+    if (!label) {
+      return seeds;
+    }
+
+    const requestedOwner = textValue(goal.owner);
+    const existingOwnerAccount = getAccountByOwner(requestedOwner, accounts);
+    const sameLabelAccount = getAccountByOwner(label, accounts);
+    if ((existingOwnerAccount && existingOwnerAccount.kind === "savings") || sameLabelAccount) {
+      return seeds;
+    }
+
+    seeds.push({
+      id: "",
+      owner: label,
+      holder: textValue(goal.scope) === "shared" ? ACCOUNT_HOLDERS.shared : inferHolderFromOwner(requestedOwner, household),
+      kind: "savings",
+      status: "active",
+      balance: parseAmount(goal.currentAmount),
+    });
+    return seeds;
+  }, []);
 }
 
 function createAccountsForHousehold(household, legacyCurrentBalance = 0) {
@@ -3046,6 +3809,70 @@ function syncCurrentBalance() {
   state.household.currentBalance = getTotalCurrentBalance();
 }
 
+function roundCurrency(value) {
+  return Math.round((value || 0) * 100) / 100;
+}
+
+function getSavingsGoalCurrentAmount(goal) {
+  const account = getAccountByOwner(goal.owner);
+  return account && account.kind === "savings" ? parseAmount(account.balance) : parseAmount(goal.currentAmount);
+}
+
+function calculateSharedExpenseDebt(item) {
+  const payerAccount = getAccountByOwner(item.paidBy);
+  const payerHolder = item.payerHolder || payerAccount?.holder || ACCOUNT_HOLDERS.partnerOne;
+  if (isSharedHolder(payerHolder)) {
+    return null;
+  }
+
+  const debtAmount = roundCurrency((parseAmount(item.amount) * parseAmount(item.sharePercent)) / 100);
+  if (debtAmount <= 0) {
+    return null;
+  }
+
+  if (payerHolder === ACCOUNT_HOLDERS.partnerOne) {
+    return {
+      fromHolder: ACCOUNT_HOLDERS.partnerTwo,
+      toHolder: ACCOUNT_HOLDERS.partnerOne,
+    fromOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerTwo) || state.household.partnerTwo || "Geneviève",
+      toOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || state.household.partnerOne || "Moi",
+      amount: debtAmount,
+    };
+  }
+
+  return {
+    fromHolder: ACCOUNT_HOLDERS.partnerOne,
+    toHolder: ACCOUNT_HOLDERS.partnerTwo,
+    fromOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || state.household.partnerOne || "Moi",
+    toOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerTwo) || state.household.partnerTwo || "Geneviève",
+    amount: debtAmount,
+  };
+}
+
+function computeSharedDebtSummary() {
+  let partnerOneOwes = 0;
+  let partnerTwoOwes = 0;
+
+  state.sharedExpenses.forEach((item) => {
+    const debt = calculateSharedExpenseDebt(item);
+    if (!debt) {
+      return;
+    }
+    if (debt.fromHolder === ACCOUNT_HOLDERS.partnerOne) {
+      partnerOneOwes += debt.amount;
+      return;
+    }
+    partnerTwoOwes += debt.amount;
+  });
+
+  const net = roundCurrency(partnerOneOwes - partnerTwoOwes);
+  return {
+    partnerOneOwes: roundCurrency(partnerOneOwes),
+    partnerTwoOwes: roundCurrency(partnerTwoOwes),
+    net,
+  };
+}
+
 function getAccountsByHolder(holder, options = {}) {
   const includeClosed = options.includeClosed === true;
   return (state.accounts || []).filter((account) => {
@@ -3142,6 +3969,7 @@ function hasPlannedActivityForAccount(owner) {
           parseAmount(item.targetAmount) > 0 ||
           (parseAmount(item.contributionAmount) > 0 && recurringStillActive(item)))
     ) ||
+    state.sharedExpenses.some((item) => item.paidBy === owner && parseDate(item.date) >= today) ||
     state.transactions.some((item) => item.owner === owner && parseDate(item.date) >= today) ||
     state.transfers.some(
       (item) => (item.fromOwner === owner || item.toOwner === owner) && parseDate(item.date) >= today
@@ -3193,3 +4021,6 @@ function createId() {
 function createDemoState() {
   return cloneDefaults();
 }
+
+
+
