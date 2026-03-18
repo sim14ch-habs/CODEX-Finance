@@ -55,6 +55,97 @@ const DEFAULT_STATE = {
       frequency: "biweekly",
       nextDate: "2026-03-26",
     },
+    {
+      id: "bill_simon_videotron",
+      owner: "Simon",
+      label: "Videotron",
+      category: "Télécom",
+      amount: 180,
+      frequency: "monthly",
+      nextDate: "2026-03-26",
+    },
+    {
+      id: "bill_simon_loyer",
+      owner: "Simon",
+      label: "Loyer",
+      category: "Logement",
+      amount: 863.5,
+      frequency: "monthly",
+      nextDate: "2026-03-28",
+    },
+    {
+      id: "bill_simon_assurance_vie",
+      owner: "Simon",
+      label: "Assurance vie",
+      category: "Assurances",
+      amount: 82.33,
+      frequency: "monthly",
+      nextDate: "2026-04-01",
+    },
+    {
+      id: "bill_simon_assurance_auto",
+      owner: "Simon",
+      label: "Assurance auto",
+      category: "Auto",
+      amount: 99.02,
+      frequency: "monthly",
+      nextDate: "2026-04-01",
+    },
+    {
+      id: "bill_simon_caa",
+      owner: "Simon",
+      label: "CAA",
+      category: "Auto",
+      amount: 8.93,
+      frequency: "monthly",
+      nextDate: "2026-04-01",
+    },
+    {
+      id: "bill_simon_cellulaire",
+      owner: "Simon",
+      label: "Cellulaire",
+      category: "Télécom",
+      amount: 49.66,
+      frequency: "monthly",
+      nextDate: "2026-04-02",
+    },
+    {
+      id: "bill_simon_saaq",
+      owner: "Simon",
+      label: "SAAQ permis de conduire",
+      category: "Auto",
+      amount: 26,
+      frequency: "monthly",
+      nextDate: "2026-04-02",
+    },
+    {
+      id: "bill_simon_poker",
+      owner: "Simon",
+      label: "Poker",
+      category: "Loisirs",
+      amount: 20,
+      frequency: "weekly",
+      nextDate: "2026-03-23",
+      endDate: "2026-04-20",
+    },
+    {
+      id: "bill_simon_quilles",
+      owner: "Simon",
+      label: "Quilles",
+      category: "Loisirs",
+      amount: 25,
+      frequency: "weekly",
+      nextDate: "2026-03-20",
+    },
+    {
+      id: "bill_simon_lastpass",
+      owner: "Simon",
+      label: "LastPass",
+      category: "Abonnements",
+      amount: 49,
+      frequency: "yearly",
+      nextDate: "2026-10-08",
+    },
   ],
   savingsGoals: [
     {
@@ -67,15 +158,18 @@ const DEFAULT_STATE = {
       contributionAmount: 300,
       frequency: "monthly",
       nextDate: "2026-04-09",
+      targetDate: "2026-09-01",
     },
   ],
   transactions: [],
+  transfers: [],
 };
 
 const FREQUENCY_LABELS = {
   weekly: "Hebdomadaire",
   biweekly: "Bihebdomadaire",
   monthly: "Mensuel",
+  yearly: "Annuel",
 };
 
 const TYPE_LABELS = {
@@ -104,6 +198,10 @@ const cloudState = {
 
 const goalPlannerState = {
   result: null,
+};
+
+const calendarUiState = {
+  monthCursor: startOfMonth(new Date()),
 };
 
 const mobileUiState = {
@@ -162,6 +260,9 @@ function sanitizeState(input) {
     transactions: Array.isArray(input.transactions)
       ? input.transactions.map((item) => sanitizeOwnedItem(item, household))
       : [],
+    transfers: Array.isArray(input.transfers)
+      ? input.transfers.map((item) => sanitizeTransfer(item, household))
+      : [],
   };
 }
 
@@ -180,11 +281,15 @@ function bindEvents() {
   $("billForm").addEventListener("submit", (event) =>
     upsertCollection(event, "bills", readBillForm)
   );
+  $("mergeSimonBillsBtn").addEventListener("click", mergeStarterBills);
   $("savingsForm").addEventListener("submit", (event) =>
     upsertCollection(event, "savingsGoals", readSavingsForm)
   );
   $("transactionForm").addEventListener("submit", (event) =>
     upsertCollection(event, "transactions", readTransactionForm)
+  );
+  $("transferForm").addEventListener("submit", (event) =>
+    upsertCollection(event, "transfers", readTransferForm)
   );
   $("goalPlannerForm").addEventListener("submit", handleGoalPlannerSubmit);
 
@@ -234,6 +339,20 @@ function bindEvents() {
   window.addEventListener("resize", renderMobileSections);
   $("savingsForm").elements.scope.addEventListener("change", updateSavingsFormOwnership);
   $("goalPlannerUseBtn").addEventListener("click", applyGoalPlannerToSavings);
+  $("calendarPrevBtn").addEventListener("click", () => {
+    calendarUiState.monthCursor = addMonthsClamped(calendarUiState.monthCursor, -1);
+    renderCalendar();
+  });
+  $("calendarTodayBtn").addEventListener("click", () => {
+    calendarUiState.monthCursor = startOfMonth(new Date());
+    renderCalendar();
+  });
+  $("calendarNextBtn").addEventListener("click", () => {
+    calendarUiState.monthCursor = addMonthsClamped(calendarUiState.monthCursor, 1);
+    renderCalendar();
+  });
+  $("transferForm").elements.fromOwner.addEventListener("change", () => syncTransferFormOwners("fromOwner"));
+  $("transferForm").elements.toOwner.addEventListener("change", () => syncTransferFormOwners("toOwner"));
 }
 
 function saveHousehold(event) {
@@ -276,6 +395,11 @@ function saveHousehold(event) {
     }
     return { ...item, owner: renameOwner(item.owner) };
   });
+  state.transfers = state.transfers.map((item) => ({
+    ...item,
+    fromOwner: renameOwner(item.fromOwner),
+    toOwner: renameOwner(item.toOwner),
+  }));
   state.accounts = [
     {
       id: ACCOUNT_IDS.partnerOne,
@@ -357,6 +481,7 @@ function readBillForm(formData) {
   const label = textValue(formData.get("label"));
   const amount = parseAmount(formData.get("amount"));
   const nextDate = textValue(formData.get("nextDate"));
+  const endDate = textValue(formData.get("endDate"));
 
   if (!label || !amount || !nextDate) {
     window.alert("Merci de remplir le libellé, le montant et la prochaine date.");
@@ -371,7 +496,27 @@ function readBillForm(formData) {
     amount,
     frequency: textValue(formData.get("frequency")) || "monthly",
     nextDate,
+    endDate,
   };
+}
+
+function mergeStarterBills() {
+  const owner = state.household.partnerOne || "Simon";
+  const starterBills = cloneDefaults().bills.map((item) => ({ ...item, owner }));
+  const existingKeys = new Set(state.bills.map((item) => buildOwnedLabelKey(item.owner, item.label)));
+  const missingBills = starterBills.filter(
+    (item) => !existingKeys.has(buildOwnedLabelKey(item.owner, item.label))
+  );
+
+  if (!missingBills.length) {
+    window.alert("Les dépenses Simon de départ sont déjà présentes dans ce budget.");
+    return;
+  }
+
+  state.bills = [...state.bills, ...missingBills];
+  persistState();
+  renderAll();
+  window.alert(`${missingBills.length} dépenses ont été ajoutées au compte ${owner}.`);
 }
 
 function readSavingsForm(formData) {
@@ -420,6 +565,34 @@ function readTransactionForm(formData) {
     owner: readOwner(formData),
     label,
     type: textValue(formData.get("type")) || "expense",
+    amount,
+    date,
+    notes: textValue(formData.get("notes")),
+  };
+}
+
+function readTransferForm(formData) {
+  const amount = parseAmount(formData.get("amount"));
+  const date = textValue(formData.get("date"));
+  const fromOwner = textValue(formData.get("fromOwner"));
+  const toOwner = textValue(formData.get("toOwner"));
+  const label = textValue(formData.get("label")) || "Virement";
+
+  if (!amount || !date || !fromOwner || !toOwner) {
+    window.alert("Merci de remplir la date, les deux comptes et le montant du virement.");
+    return null;
+  }
+
+  if (fromOwner === toOwner) {
+    window.alert("Le compte source et le compte destination doivent être différents.");
+    return null;
+  }
+
+  return {
+    id: textValue(formData.get("id")) || createId(),
+    fromOwner,
+    toOwner,
+    label,
     amount,
     date,
     notes: textValue(formData.get("notes")),
@@ -938,6 +1111,7 @@ function renderAll() {
   renderStats();
   renderAlerts();
   renderProjection();
+  renderCalendar();
   renderContributors();
   renderTables();
   renderMobileSections();
@@ -978,6 +1152,7 @@ function seedFormDefaults() {
     ["billForm", "nextDate"],
     ["savingsForm", "nextDate"],
     ["transactionForm", "date"],
+    ["transferForm", "date"],
     ["goalPlannerForm", "startDate"],
   ].forEach(([formId, field]) => {
     const form = $(formId);
@@ -991,6 +1166,7 @@ function seedFormDefaults() {
     plannerForm.elements.targetDate.value = formatInputDate(addMonthsClamped(new Date(), 6));
   }
 
+  syncTransferFormOwners();
   $("projectionRangeChip").textContent = `${state.household.projectionMonths || 6} mois`;
 }
 
@@ -1021,6 +1197,43 @@ function renderMobileSections() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", active ? "true" : "false");
   });
+}
+
+function syncTransferFormOwners(changedField = "") {
+  const form = $("transferForm");
+  if (!form) {
+    return;
+  }
+
+  const fromField = form.elements.fromOwner;
+  const toField = form.elements.toOwner;
+  if (!fromField || !toField) {
+    return;
+  }
+
+  if (!fromField.value) {
+    fromField.value = state.household.partnerOne || "Moi";
+  }
+
+  if (!toField.value) {
+    toField.value = getSharedOwnerValue();
+  }
+
+  if (fromField.value !== toField.value) {
+    return;
+  }
+
+  const alternatives = getOwnerOptions(true)
+    .map((option) => option.value)
+    .filter((value) => value !== fromField.value);
+  const fallback = alternatives[0] || "";
+
+  if (changedField === "toOwner") {
+    fromField.value = fallback || fromField.value;
+    return;
+  }
+
+  toField.value = fallback || toField.value;
 }
 
 function updateSavingsFormOwnership() {
@@ -1302,6 +1515,7 @@ function renderTables() {
   renderTable("paychecksTable", state.paychecks, 6, renderPaycheckRow);
   renderTable("billsTable", state.bills, 7, renderBillRow);
   renderTable("savingsTable", state.savingsGoals, 7, renderSavingsRow);
+  renderTable("transfersTable", state.transfers.slice().sort(sortByDateDesc), 6, renderTransferRow);
   renderTable("transactionsTable", state.transactions.slice().sort(sortByDateDesc), 6, renderTransactionRow);
 }
 
@@ -1329,6 +1543,7 @@ function renderPaycheckRow(item) {
 }
 
 function renderBillRow(item) {
+  const scheduleLabel = item.endDate ? `Jusqu'au ${formatDate(item.endDate)}` : "";
   return `
     <tr>
       <td>${escapeHtml(formatOwnerLabel(item.owner))}</td>
@@ -1336,7 +1551,10 @@ function renderBillRow(item) {
       <td>${escapeHtml(item.category || "-")}</td>
       <td>${escapeHtml(FREQUENCY_LABELS[item.frequency] || item.frequency)}</td>
       <td class="negative">${escapeHtml(formatCurrency(item.amount))}</td>
-      <td>${escapeHtml(formatDate(item.nextDate))}</td>
+      <td>
+        <div>${escapeHtml(formatDate(item.nextDate))}</div>
+        ${scheduleLabel ? `<small>${escapeHtml(scheduleLabel)}</small>` : ""}
+      </td>
       <td>${renderActions("bills", item.id)}</td>
     </tr>
   `;
@@ -1388,6 +1606,19 @@ function renderTransactionRow(item) {
   `;
 }
 
+function renderTransferRow(item) {
+  return `
+    <tr>
+      <td>${escapeHtml(formatDate(item.date))}</td>
+      <td>${escapeHtml(formatOwnerLabel(item.fromOwner))}</td>
+      <td>${escapeHtml(formatOwnerLabel(item.toOwner))}</td>
+      <td>${escapeHtml(item.label)}</td>
+      <td>${escapeHtml(formatCurrency(item.amount))}</td>
+      <td>${renderActions("transfers", item.id)}</td>
+    </tr>
+  `;
+}
+
 function renderActions(collection, id) {
   return `
     <div class="table-actions">
@@ -1428,6 +1659,7 @@ function editItem(collection, id) {
     paychecks: "paycheckForm",
     bills: "billForm",
     savingsGoals: "savingsForm",
+    transfers: "transferForm",
     transactions: "transactionForm",
   };
 
@@ -1439,6 +1671,9 @@ function editItem(collection, id) {
   });
   if (collection === "savingsGoals") {
     updateSavingsFormOwnership();
+  }
+  if (collection === "transfers") {
+    syncTransferFormOwners();
   }
   form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1496,6 +1731,116 @@ function renderProjection() {
     : "<li><div><strong>Aucun mouvement à venir</strong><small>Ajoutez des paies, factures ou virements.</small></div></li>";
 
   drawProjectionChart(projection.points, state.household.safetyBuffer);
+}
+
+function renderCalendar() {
+  const grid = $("calendarGrid");
+  const label = $("calendarMonthLabel");
+  if (!grid || !label) {
+    return;
+  }
+
+  const monthStart = startOfMonth(calendarUiState.monthCursor || new Date());
+  const monthEnd = endOfMonth(monthStart);
+  const gridStart = startOfCalendarGrid(monthStart);
+  const eventsByDate = new Map();
+
+  collectCalendarEvents(monthStart, monthEnd).forEach((event) => {
+    const key = formatInputDate(event.date);
+    if (!eventsByDate.has(key)) {
+      eventsByDate.set(key, []);
+    }
+    eventsByDate.get(key).push(event);
+  });
+
+  label.textContent = monthStart.toLocaleDateString("fr-CA", { month: "long", year: "numeric" });
+
+  const days = [];
+  let cursor = gridStart;
+  for (let index = 0; index < 42; index += 1) {
+    const key = formatInputDate(cursor);
+    const dayEvents = eventsByDate.get(key) || [];
+    const extraCount = Math.max(dayEvents.length - 3, 0);
+    days.push(`
+      <article class="calendar-day${sameCalendarMonth(cursor, monthStart) ? "" : " is-muted"}${isSameDay(cursor, new Date()) ? " is-today" : ""}">
+        <div class="calendar-day-head">
+          <span>${escapeHtml(String(cursor.getDate()))}</span>
+        </div>
+        <div class="calendar-day-events">
+          ${dayEvents.slice(0, 3).map(renderCalendarEvent).join("")}
+          ${extraCount ? `<p class="calendar-more">+ ${extraCount} autre${extraCount > 1 ? "s" : ""}</p>` : ""}
+        </div>
+      </article>
+    `);
+    cursor = addDays(cursor, 1);
+  }
+
+  grid.innerHTML = days.join("");
+}
+
+function collectCalendarEvents(start, end) {
+  const events = [];
+
+  state.paychecks.forEach((item) => {
+    events.push(...expandRecurring(item, "income", item.amount, start, end));
+  });
+  state.bills.forEach((item) => {
+    events.push(...expandRecurring(item, "bill", -item.amount, start, end));
+  });
+  state.savingsGoals.forEach((item) => {
+    if (item.contributionAmount > 0 && item.nextDate) {
+      events.push(...expandRecurring(item, "saving", -item.contributionAmount, start, end));
+    }
+  });
+  state.transactions.forEach((item) => {
+    const date = parseDate(item.date);
+    if (date >= start && date <= end) {
+      events.push({
+        id: item.id,
+        label: item.label,
+        owner: item.owner,
+        date,
+        delta: transactionDelta(item),
+        kind: item.type === "expense" ? "bill" : item.type,
+      });
+    }
+  });
+  state.transfers.forEach((item) => {
+    const date = parseDate(item.date);
+    if (date >= start && date <= end) {
+      events.push({
+        id: item.id,
+        label: item.label || "Virement",
+        date,
+        amount: item.amount,
+        kind: "transfer",
+        fromOwner: item.fromOwner,
+        toOwner: item.toOwner,
+      });
+    }
+  });
+
+  return events.sort(compareEvents);
+}
+
+function renderCalendarEvent(event) {
+  const tone = event.kind === "income" ? "positive" : event.kind === "transfer" ? "transfer" : "negative";
+  const amountLabel = event.kind === "transfer"
+    ? formatCurrency(event.amount)
+    : formatSignedCurrency(event.delta);
+  const metaLabel = event.kind === "transfer"
+    ? `${formatOwnerLabel(event.fromOwner)} → ${formatOwnerLabel(event.toOwner)}`
+    : formatOwnerLabel(event.owner);
+
+  return `
+    <div class="calendar-event ${tone}">
+      <div class="calendar-event-copy">
+        <strong>${escapeHtml(event.label)}</strong>
+        <small>${escapeHtml(metaLabel)}</small>
+      </div>
+      <span>${escapeHtml(amountLabel)}</span>
+    </div>
+  `;
 }
 
 function renderContributors() {
@@ -1614,6 +1959,35 @@ function buildProjection(months, ownerFilter = null) {
       });
     }
   });
+  state.transfers.forEach((item) => {
+    const date = parseDate(item.date);
+    if (date < start || date > end) {
+      return;
+    }
+    if (!ownerFilter) {
+      return;
+    }
+    if (item.fromOwner === ownerFilter) {
+      events.push({
+        id: item.id,
+        label: item.label || `Virement vers ${formatOwnerLabel(item.toOwner)}`,
+        owner: item.fromOwner,
+        date,
+        delta: -Math.abs(item.amount || 0),
+        kind: "transfer",
+      });
+    }
+    if (item.toOwner === ownerFilter) {
+      events.push({
+        id: item.id,
+        label: item.label || `Virement de ${formatOwnerLabel(item.fromOwner)}`,
+        owner: item.toOwner,
+        date,
+        delta: Math.abs(item.amount || 0),
+        kind: "transfer",
+      });
+    }
+  });
 
   events.sort(compareEvents);
 
@@ -1637,15 +2011,20 @@ function expandRecurring(item, kind, delta, start, end) {
   let cursor = parseDate(item.nextDate);
   const events = [];
   let guard = 0;
+  const recurringEnd = item.endDate ? parseDate(item.endDate) : end;
+  const effectiveEnd = recurringEnd < end ? recurringEnd : end;
   if (Number.isNaN(cursor.getTime())) {
     return events;
   }
+  if (Number.isNaN(effectiveEnd.getTime()) || effectiveEnd < cursor) {
+    return events;
+  }
 
-  while (cursor < start && guard < 200) {
+  while (cursor < start && cursor <= effectiveEnd && guard < 200) {
     cursor = advanceDate(cursor, item.frequency);
     guard += 1;
   }
-  while (cursor <= end && guard < 600) {
+  while (cursor <= effectiveEnd && guard < 600) {
     events.push({ id: item.id, label: item.label, owner: item.owner, date: cursor, delta, kind });
     cursor = advanceDate(cursor, item.frequency);
     guard += 1;
@@ -1657,8 +2036,8 @@ function compareEvents(a, b) {
   if (a.date.getTime() !== b.date.getTime()) {
     return a.date - b.date;
   }
-  const order = { income: 0, saving: 1, bill: 2 };
-  return (order[a.kind] || 9) - (order[b.kind] || 9);
+  const order = { income: 0, transfer: 1, saving: 2, bill: 3 };
+  return (order[a.kind] ?? 9) - (order[b.kind] ?? 9);
 }
 
 function drawProjectionChart(points, safetyBuffer) {
@@ -1917,6 +2296,9 @@ function monthlyAmount(amount, frequency) {
   if (frequency === "biweekly") {
     return (amount * 26) / 12;
   }
+  if (frequency === "yearly") {
+    return amount / 12;
+  }
   return amount || 0;
 }
 
@@ -1960,6 +2342,9 @@ function advanceDate(date, frequency) {
     next.setDate(next.getDate() + 14);
     return startOfDay(next);
   }
+  if (frequency === "yearly") {
+    return addMonthsClamped(next, 12);
+  }
   return addMonthsClamped(next, 1);
 }
 
@@ -1977,6 +2362,34 @@ function addDays(date, days) {
   const value = new Date(date);
   value.setDate(value.getDate() + days);
   return startOfDay(value);
+}
+
+function startOfMonth(date) {
+  const value = startOfDay(date);
+  value.setDate(1);
+  return value;
+}
+
+function endOfMonth(date) {
+  const value = startOfMonth(date);
+  value.setMonth(value.getMonth() + 1);
+  value.setDate(0);
+  return startOfDay(value);
+}
+
+function sameCalendarMonth(left, right) {
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth();
+}
+
+function isSameDay(left, right) {
+  return formatInputDate(left) === formatInputDate(right);
+}
+
+function startOfCalendarGrid(date) {
+  const start = startOfMonth(date);
+  const day = start.getDay();
+  const delta = day === 0 ? -6 : 1 - day;
+  return addDays(start, delta);
 }
 
 function formatDate(value) {
@@ -2005,6 +2418,10 @@ function formatSignedCurrency(value) {
 
 function textValue(value) {
   return String(value || "").trim();
+}
+
+function buildOwnedLabelKey(owner, label) {
+  return `${textValue(owner).toLowerCase()}::${textValue(label).toLowerCase()}`;
 }
 
 function escapeHtml(value) {
@@ -2046,6 +2463,7 @@ function sanitizeOwnedItem(item, household) {
     frequency: textValue(item.frequency) || "monthly",
     nextDate: textValue(item.nextDate),
     date: textValue(item.date),
+    endDate: textValue(item.endDate),
     category: textValue(item.category),
     notes: textValue(item.notes),
     amount: parseAmount(item.amount),
@@ -2067,6 +2485,19 @@ function sanitizeSavingsGoal(item, household) {
     frequency: textValue(item.frequency) || "monthly",
     nextDate: textValue(item.nextDate),
     targetDate: textValue(item.targetDate),
+    endDate: textValue(item.endDate),
+  };
+}
+
+function sanitizeTransfer(item, household) {
+  return {
+    id: textValue(item.id) || createId(),
+    fromOwner: sanitizeOwnerLabel(item.fromOwner, household),
+    toOwner: sanitizeOwnerLabel(item.toOwner, household),
+    label: textValue(item.label) || "Virement",
+    amount: parseAmount(item.amount),
+    date: textValue(item.date),
+    notes: textValue(item.notes),
   };
 }
 
@@ -2189,71 +2620,5 @@ function createId() {
 }
 
 function createDemoState() {
-  return {
-    household: {
-      householdName: "Budget Simon",
-      partnerOne: "Simon",
-      partnerTwo: "Ma conjointe",
-      currency: "CAD",
-      currentBalance: 998,
-      projectionMonths: 6,
-      safetyBuffer: 1500,
-    },
-    accounts: [
-      {
-        id: ACCOUNT_IDS.partnerOne,
-        owner: "Simon",
-        kind: "personal",
-        balance: 998,
-      },
-      {
-        id: ACCOUNT_IDS.partnerTwo,
-        owner: "Ma conjointe",
-        kind: "personal",
-        balance: 0,
-      },
-      {
-        id: ACCOUNT_IDS.shared,
-        owner: "Budget Simon",
-        kind: "shared",
-        balance: 0,
-      },
-    ],
-    paychecks: [
-      {
-        id: createId(),
-        owner: "Simon",
-        label: "Paie ABB",
-        amount: 1988,
-        frequency: "biweekly",
-        nextDate: "2026-03-25",
-      },
-    ],
-    bills: [
-      {
-        id: createId(),
-        owner: "Simon",
-        label: "MNP",
-        category: "Finances",
-        amount: 400,
-        frequency: "biweekly",
-        nextDate: "2026-03-26",
-      },
-    ],
-    savingsGoals: [
-      {
-        id: createId(),
-        scope: "personal",
-        owner: "Simon",
-        label: "Fonds d'urgence",
-        targetAmount: 1500,
-        currentAmount: 300,
-        contributionAmount: 300,
-        frequency: "monthly",
-        nextDate: "2026-04-09",
-        targetDate: "2026-09-01",
-      },
-    ],
-    transactions: [],
-  };
+  return cloneDefaults();
 }

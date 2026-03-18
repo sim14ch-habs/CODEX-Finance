@@ -47,6 +47,97 @@
       "amount": 400,
       "frequency": "biweekly",
       "nextDate": "2026-03-26"
+    },
+    {
+      "id": "bill_simon_videotron",
+      "owner": "Simon",
+      "label": "Videotron",
+      "category": "Télécom",
+      "amount": 180,
+      "frequency": "monthly",
+      "nextDate": "2026-03-26"
+    },
+    {
+      "id": "bill_simon_loyer",
+      "owner": "Simon",
+      "label": "Loyer",
+      "category": "Logement",
+      "amount": 863.5,
+      "frequency": "monthly",
+      "nextDate": "2026-03-28"
+    },
+    {
+      "id": "bill_simon_assurance_vie",
+      "owner": "Simon",
+      "label": "Assurance vie",
+      "category": "Assurances",
+      "amount": 82.33,
+      "frequency": "monthly",
+      "nextDate": "2026-04-01"
+    },
+    {
+      "id": "bill_simon_assurance_auto",
+      "owner": "Simon",
+      "label": "Assurance auto",
+      "category": "Auto",
+      "amount": 99.02,
+      "frequency": "monthly",
+      "nextDate": "2026-04-01"
+    },
+    {
+      "id": "bill_simon_caa",
+      "owner": "Simon",
+      "label": "CAA",
+      "category": "Auto",
+      "amount": 8.93,
+      "frequency": "monthly",
+      "nextDate": "2026-04-01"
+    },
+    {
+      "id": "bill_simon_cellulaire",
+      "owner": "Simon",
+      "label": "Cellulaire",
+      "category": "Télécom",
+      "amount": 49.66,
+      "frequency": "monthly",
+      "nextDate": "2026-04-02"
+    },
+    {
+      "id": "bill_simon_saaq",
+      "owner": "Simon",
+      "label": "SAAQ permis de conduire",
+      "category": "Auto",
+      "amount": 26,
+      "frequency": "monthly",
+      "nextDate": "2026-04-02"
+    },
+    {
+      "id": "bill_simon_poker",
+      "owner": "Simon",
+      "label": "Poker",
+      "category": "Loisirs",
+      "amount": 20,
+      "frequency": "weekly",
+      "nextDate": "2026-03-23",
+      "endDate": "2026-04-20"
+    },
+    {
+      "id": "bill_simon_quilles",
+      "owner": "Simon",
+      "label": "Quilles",
+      "category": "Loisirs",
+      "amount": 25,
+      "frequency": "weekly",
+      "nextDate": "2026-03-20"
+    },
+    {
+      "id": "bill_simon_lastpass",
+      "owner": "Simon",
+      "label": "LastPass",
+      "category": "Abonnements",
+      "amount": 49,
+      "frequency": "yearly",
+      "nextDate": "2026-10-08"
     }
   ],
   "savingsGoals": [
@@ -63,5 +154,6 @@
       "targetDate": "2026-09-01"
     }
   ],
-  "transactions": []
+  "transactions": [],
+  "transfers": []
 }

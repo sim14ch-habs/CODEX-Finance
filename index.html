@@ -17,14 +17,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260318-6">
+    <link rel="stylesheet" href="styles.css?v=20260318-7">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-18 / accounts-goals-alerts-v2</p>
+          <p class="eyebrow">Build 2026-03-18 / calendar-transfers</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -286,6 +286,34 @@
         <section class="panel" data-mobile-section="overview">
           <div class="section-head">
             <div>
+              <p class="section-kicker">Calendrier</p>
+              <h2>Mouvements du mois</h2>
+            </div>
+            <p>Repérez visuellement les paies, factures, épargnes et virements prévus.</p>
+          </div>
+          <div class="calendar-toolbar">
+            <button id="calendarPrevBtn" class="button ghost" type="button">Mois précédent</button>
+            <strong id="calendarMonthLabel">-</strong>
+            <div class="calendar-toolbar-actions">
+              <button id="calendarTodayBtn" class="button secondary" type="button">Aujourd'hui</button>
+              <button id="calendarNextBtn" class="button ghost" type="button">Mois suivant</button>
+            </div>
+          </div>
+          <div class="calendar-weekdays">
+            <span>Lun</span>
+            <span>Mar</span>
+            <span>Mer</span>
+            <span>Jeu</span>
+            <span>Ven</span>
+            <span>Sam</span>
+            <span>Dim</span>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+        </section>
+
+        <section class="panel" data-mobile-section="overview">
+          <div class="section-head">
+            <div>
               <p class="section-kicker">Comptes</p>
               <h2>Soldes séparés</h2>
             </div>
@@ -334,6 +362,7 @@
                   <option value="weekly">Chaque semaine</option>
                   <option value="biweekly">Toutes les 2 semaines</option>
                   <option value="monthly">Chaque mois</option>
+                  <option value="yearly">Chaque année</option>
                 </select>
               </label>
               <div class="form-actions form-actions-wide">
@@ -403,11 +432,16 @@
                   <option value="weekly">Chaque semaine</option>
                   <option value="biweekly">Toutes les 2 semaines</option>
                   <option value="monthly">Chaque mois</option>
+                  <option value="yearly">Chaque année</option>
                 </select>
               </label>
               <label>
                 Prochaine date
                 <input name="nextDate" type="date">
+              </label>
+              <label>
+                Fin de série
+                <input name="endDate" type="date">
               </label>
               <div class="form-actions">
                 <button class="button primary" type="submit">Ajouter / mettre a jour</button>
@@ -463,6 +497,7 @@
                   <option value="weekly">Chaque semaine</option>
                   <option value="biweekly">Toutes les 2 semaines</option>
                   <option value="monthly">Chaque mois</option>
+                  <option value="yearly">Chaque année</option>
                 </select>
               </label>
               <label>
@@ -474,6 +509,10 @@
                 <button class="button ghost form-reset" data-form="billForm" type="button">Vider</button>
               </div>
             </form>
+            <div class="form-actions">
+              <button id="mergeSimonBillsBtn" class="button ghost" type="button">Ajouter mes dépenses Simon</button>
+            </div>
+            <p class="helper-text form-helper">Ajoute seulement les factures Simon manquantes, sans doublons.</p>
             <div class="table-wrap">
               <table>
                 <thead>
@@ -496,7 +535,7 @@
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Épargne</p>
-                <h2>Objectifs et virements</h2>
+                <h2>Objectifs d'épargne</h2>
               </div>
               <p>Choisissez si chaque objectif est personnel ou commun, sans mélanger vos comptes.</p>
             </div>
@@ -535,6 +574,7 @@
                   <option value="weekly">Chaque semaine</option>
                   <option value="biweekly">Toutes les 2 semaines</option>
                   <option value="monthly">Chaque mois</option>
+                  <option value="yearly">Chaque année</option>
                 </select>
               </label>
               <label>
@@ -567,6 +607,62 @@
                   </tr>
                 </thead>
                 <tbody id="savingsTable"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" data-mobile-section="entries">
+            <div class="section-head tight">
+              <div>
+                <p class="section-kicker">Comptes</p>
+                <h2>Virements entre comptes</h2>
+              </div>
+              <p>Déplacez de l'argent d'un compte à l'autre sans fausser le total du foyer.</p>
+            </div>
+            <form id="transferForm" class="stack-form">
+              <input name="id" type="hidden">
+              <label>
+                Date
+                <input name="date" type="date">
+              </label>
+              <label>
+                Compte source
+                <select name="fromOwner" class="owner-select"></select>
+              </label>
+              <label>
+                Compte destination
+                <select name="toOwner" class="owner-select"></select>
+              </label>
+              <label>
+                Montant
+                <input name="amount" type="number" step="0.01" placeholder="250">
+              </label>
+              <label>
+                Libellé
+                <input name="label" type="text" placeholder="Virement vers le compte commun">
+              </label>
+              <label>
+                Notes
+                <textarea name="notes" rows="3" placeholder="Facultatif"></textarea>
+              </label>
+              <div class="form-actions">
+                <button class="button primary" type="submit">Ajouter / mettre a jour</button>
+                <button class="button ghost form-reset" data-form="transferForm" type="button">Vider</button>
+              </div>
+            </form>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>De</th>
+                    <th>Vers</th>
+                    <th>Libellé</th>
+                    <th>Montant</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="transfersTable"></tbody>
               </table>
             </div>
           </section>
@@ -657,6 +753,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260317-1"></script>
-    <script src="app.js?v=20260318-6"></script>
+    <script src="app.js?v=20260318-7"></script>
   </body>
 </html>
