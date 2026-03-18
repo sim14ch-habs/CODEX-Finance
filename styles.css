@@ -274,6 +274,8 @@ textarea {
   display: block;
   margin-top: 10px;
   font-size: 1.05rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .mini-stat p {
@@ -915,6 +917,31 @@ textarea {
   margin-bottom: 12px;
 }
 
+.chart-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+
+.chart-control {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.chart-control span {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.chart-control select {
+  min-width: 0;
+}
+
 .chart-header p {
   margin: 8px 0 0;
   color: var(--muted);
@@ -1275,6 +1302,14 @@ svg {
 
   .cloud-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .chart-controls {
+    justify-content: stretch;
+  }
+
+  .chart-control {
+    min-width: 0;
   }
 
   .spotlight-grid {

@@ -5,8 +5,7 @@
                       "partnerTwo":  "Geneviève",
                       "currency":  "CAD",
                       "currentBalance":  1298,
-                      "projectionMonths":  6,
-                      "safetyBuffer":  1500
+                      "projectionMonths":  6
                   },
     "accounts":  [
                      {
@@ -21,14 +20,6 @@
                          "id":  "account_partner_two",
                          "owner":  "Geneviève",
                          "holder":  "partnerTwo",
-                         "kind":  "checking",
-                         "status":  "active",
-                         "balance":  0
-                     },
-                     {
-                         "id":  "account_shared",
-                         "owner":  "Budget Simon",
-                         "holder":  "shared",
                          "kind":  "checking",
                          "status":  "active",
                          "balance":  0

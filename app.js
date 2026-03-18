@@ -4,7 +4,6 @@ const UNDO_STACK_STORAGE_KEY = "budget-duo-v2-undo-stack";
 const ACCOUNT_IDS = {
   partnerOne: "account_partner_one",
   partnerTwo: "account_partner_two",
-  shared: "account_shared",
 };
 const ACCOUNT_HOLDERS = {
   partnerOne: "partnerOne",
@@ -32,7 +31,6 @@ const DEFAULT_STATE = {
     currency: "CAD",
     currentBalance: 1298,
     projectionMonths: 6,
-    safetyBuffer: 1500,
   },
   accounts: [
     {
@@ -47,14 +45,6 @@ const DEFAULT_STATE = {
       id: ACCOUNT_IDS.partnerTwo,
       owner: "Geneviève",
       holder: ACCOUNT_HOLDERS.partnerTwo,
-      kind: "checking",
-      status: "active",
-      balance: 0,
-    },
-    {
-      id: ACCOUNT_IDS.shared,
-      owner: "Budget Simon",
-      holder: ACCOUNT_HOLDERS.shared,
       kind: "checking",
       status: "active",
       balance: 0,
@@ -245,6 +235,10 @@ const goalPlannerState = {
   result: null,
 };
 
+const projectionUiState = {
+  owner: "",
+};
+
 const compactTableState = {
   bills: false,
   sharedExpenses: false,
@@ -421,6 +415,10 @@ function bindEvents() {
   $("savingsForm").elements.owner.addEventListener("change", syncSavingsCurrentAmountField);
   $("goalPlannerForm").elements.owner.addEventListener("change", syncGoalPlannerCurrentAmountField);
   $("goalPlannerUseBtn").addEventListener("click", applyGoalPlannerToSavings);
+  $("projectionOwnerSelect").addEventListener("change", (event) => {
+    projectionUiState.owner = event.currentTarget.value || "";
+    renderProjection();
+  });
   $("calendarPrevBtn").addEventListener("click", () => {
     calendarUiState.monthCursor = addMonthsClamped(calendarUiState.monthCursor, -1);
     renderCalendar();
@@ -456,14 +454,6 @@ function saveHousehold(event) {
       previousOwner:
         state.accounts.find((account) => account.id === ACCOUNT_IDS.partnerTwo)?.owner || state.household.partnerTwo || "Geneviève",
     },
-    {
-      id: ACCOUNT_IDS.shared,
-      nextOwner: textValue(formData.get("householdName")) || "Budget du foyer",
-      holder: ACCOUNT_HOLDERS.shared,
-      previousOwner:
-        state.accounts.find((account) => account.id === ACCOUNT_IDS.shared)?.owner ||
-        getSharedOwnerValueFromHousehold(state.household),
-    },
   ];
   state.household = {
     householdName: textValue(formData.get("householdName")) || "Budget du foyer",
@@ -472,7 +462,6 @@ function saveHousehold(event) {
     currency: textValue(formData.get("currency")) || "CAD",
     currentBalance: getTotalCurrentBalance(),
     projectionMonths: parseInt(formData.get("projectionMonths"), 10) || 6,
-    safetyBuffer: parseAmount(formData.get("safetyBuffer")),
   };
   const ownerRenames = new Map();
 
@@ -1617,6 +1606,7 @@ function renderAll() {
   renderBalanceLabels();
   renderAccountHolderOptions();
   renderOwnerSelects();
+  renderProjectionOwnerOptions();
   seedFormDefaults();
   updateSavingsFormOwnership();
   renderGoalPlannerOwnerOptions();
@@ -1642,7 +1632,6 @@ function populateHouseholdForm() {
   form.elements.partnerTwo.value = state.household.partnerTwo || "";
   form.elements.currency.value = state.household.currency || "CAD";
   form.elements.projectionMonths.value = String(state.household.projectionMonths || 6);
-  form.elements.safetyBuffer.value = state.household.safetyBuffer || "";
 }
 
 function renderOwnerSelects() {
@@ -1653,6 +1642,25 @@ function renderOwnerSelects() {
     }
     renderSelectOptions(select, getOwnerOptions(), previous);
   });
+}
+
+function renderProjectionOwnerOptions() {
+  const select = $("projectionOwnerSelect");
+  if (!select) {
+    return;
+  }
+
+  const options = getOwnerOptions();
+  const fallbackOwner = getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || getFirstActiveOwner() || "";
+  const preferred = options.some((option) => option.value === projectionUiState.owner)
+    ? projectionUiState.owner
+    : options.some((option) => option.value === fallbackOwner)
+      ? fallbackOwner
+      : (options[0] || {}).value || "";
+
+  renderSelectOptions(select, options, preferred);
+  projectionUiState.owner = select.value || "";
+  select.disabled = !options.length;
 }
 
 function renderAccountHolderOptions() {
@@ -1997,15 +2005,12 @@ function collectAlerts() {
     return lowest;
   }, null);
 
-  if (lowestCombined && state.household.safetyBuffer && lowestCombined.balance < state.household.safetyBuffer) {
+  if (lowestCombined && lowestCombined.balance < 0) {
     alerts.push({
-      tone: lowestCombined.balance < 0 ? "critical" : "warning",
-      label: lowestCombined.balance < 0 ? "Critique" : "Surveillance",
-      title: lowestCombined.balance < 0 ? "Le total passe sous zéro" : "Le coussin de sécurité est entamé",
-      message:
-        lowestCombined.balance < 0
-          ? `Le total projeté tomberait à ${formatCurrency(lowestCombined.balance)} le ${formatDate(lowestCombined.date)}.`
-          : `Le total toucherait ${formatCurrency(lowestCombined.balance)} le ${formatDate(lowestCombined.date)}, sous le coussin cible.`,
+      tone: "critical",
+      label: "Critique",
+      title: "Le total passe sous zéro",
+      message: `Le total projeté tomberait à ${formatCurrency(lowestCombined.balance)} le ${formatDate(lowestCombined.date)}.`,
     });
   }
 
@@ -2142,11 +2147,6 @@ function renderStats() {
       `
     )
     .join("");
-
-  $("heroSavings").textContent = formatCurrency(metrics.monthlySavings);
-  $("heroBuffer").textContent = state.household.safetyBuffer
-    ? formatCurrency(state.household.safetyBuffer)
-    : "-";
 }
 
 function renderTables() {
@@ -2267,12 +2267,10 @@ function renderAccountRow(account) {
   const statusTone = account.status === "closed" ? "neutral" : "success";
   const kindLabel = ACCOUNT_KIND_LABELS[account.kind] || account.kind;
   const holderLabel = formatAccountHolder(account.holder);
-  const ownerNote = account.id === ACCOUNT_IDS.shared ? "Compte principal du foyer" : "";
   return `
     <tr>
       <td>
         <div>${escapeHtml(account.owner)}</div>
-        ${ownerNote ? `<small>${escapeHtml(ownerNote)}</small>` : ""}
       </td>
       <td>${escapeHtml(holderLabel)}</td>
       <td>${escapeHtml(kindLabel)}</td>
@@ -2611,8 +2609,12 @@ function toggleAccountStatus(id) {
 }
 
 function renderProjection() {
-  const projection = buildProjection(state.household.projectionMonths || 6);
-  const metrics = computeMetrics();
+  const months = state.household.projectionMonths || 6;
+  const projectionOwner = projectionUiState.owner || $("projectionOwnerSelect")?.value || "";
+  const account = getAccountByOwner(projectionOwner);
+  const accountMetrics = projectionOwner ? computeAccountMetrics(projectionOwner) : { income: 0, bills: 0, savings: 0, net: 0 };
+  const currentBalance = projectionOwner ? getAccountBalance(projectionOwner) : 0;
+  const projection = projectionOwner ? buildProjection(months, projectionOwner) : { events: [], points: [] };
   const futureEvents = projection.events.filter((event) => event.date >= startOfDay(new Date()));
   const lastPoint = getLast(projection.points);
   const lowestPoint = projection.points.reduce((lowest, point) => {
@@ -2623,29 +2625,45 @@ function renderProjection() {
   }, null);
   const nextIncome = futureEvents.find((event) => event.kind === "income");
   const nextBillSummary = getNextBillSummary(futureEvents);
+  const ownerLabel = projectionOwner ? formatOwnerLabel(projectionOwner) : "Aucun compte";
+
+  $("projectionRangeChip").textContent = `${months} mois`;
+  $("heroProjectionAccount").textContent = projectionOwner ? ownerLabel : "-";
+  $("heroProjectionAccountCaption").textContent = projectionOwner
+    ? formatProjectionAccountCaption(account)
+    : "Ajoute un compte pour projeter son évolution.";
 
   $("heroProjected").textContent = lastPoint
     ? formatCurrency(lastPoint.balance)
-    : formatCurrency(getTotalCurrentBalance());
-  $("heroProjectedCaption").textContent = `A ${state.household.projectionMonths || 6} mois.`;
+    : formatCurrency(currentBalance);
+  $("heroProjectedCaption").textContent = projectionOwner
+    ? `${ownerLabel} • ${months} mois.`
+    : "Choisis un compte pour lancer une projection.";
   $("heroNextIncome").textContent = nextIncome ? formatDate(nextIncome.date) : "Aucune";
   $("heroNextBill").textContent = nextBillSummary ? formatDaysUntilLabel(nextBillSummary.daysAway) : "Aucune";
   $("heroNextBillCaption").textContent = nextBillSummary
     ? `${formatDate(nextBillSummary.date)} • ${nextBillSummary.count} facture${nextBillSummary.count > 1 ? "s" : ""} • ${formatCurrency(nextBillSummary.totalAmount)}`
     : "Aucune facture récurrente à venir.";
-  $("netMonthlyStat").textContent = formatCurrency(metrics.monthlyNet);
+  $("heroSavings").textContent = formatCurrency(accountMetrics.savings);
+  $("netMonthlyStat").textContent = formatCurrency(accountMetrics.net);
   $("netMonthlyCaption").textContent =
-    metrics.monthlyNet >= 0 ? "Les récurrents vont dans le bon sens." : "Le rythme doit être ajusté.";
+    projectionOwner
+      ? accountMetrics.net >= 0
+        ? `${ownerLabel} garde un rythme positif.`
+        : `${ownerLabel} demande des ajustements.`
+      : "Choisis un compte pour voir son rythme mensuel.";
   $("lowestBalanceStat").textContent = lowestPoint
     ? formatCurrency(lowestPoint.balance)
-    : formatCurrency(getTotalCurrentBalance());
+    : formatCurrency(currentBalance);
   $("lowestBalanceCaption").textContent = lowestPoint
     ? lowestPoint.balance < 0
       ? `Passage sous zéro le ${formatDate(lowestPoint.date)}.`
       : `Creux attendu le ${formatDate(lowestPoint.date)}.`
-    : "Aucune alerte pour l'instant.";
+    : projectionOwner
+      ? "Aucune alerte pour l'instant."
+      : "Choisis un compte pour afficher son point bas.";
   $("projectionSummary").textContent = lastPoint
-    ? `De ${formatCurrency(getTotalCurrentBalance())} à ${formatCurrency(lastPoint.balance)} sur l'horizon choisi.`
+    ? `${ownerLabel} : de ${formatCurrency(currentBalance)} à ${formatCurrency(lastPoint.balance)} sur l'horizon choisi.`
     : "Ajoutez des données pour lancer une projection.";
 
   $("upcomingList").innerHTML = futureEvents.length
@@ -2663,9 +2681,16 @@ function renderProjection() {
           `
         )
         .join("")
-    : "<li><div><strong>Aucun mouvement à venir</strong><small>Ajoutez des paies, factures ou virements.</small></div></li>";
+    : `<li><div><strong>Aucun mouvement à venir</strong><small>${escapeHtml(projectionOwner ? `Ajoute des paies, factures ou virements sur ${ownerLabel}.` : "Choisis un compte pour voir ses mouvements.")}</small></div></li>`;
 
-  drawProjectionChart(projection.points, state.household.safetyBuffer);
+  drawProjectionChart(projection.points);
+}
+
+function formatProjectionAccountCaption(account) {
+  if (!account) {
+    return "Compte introuvable.";
+  }
+  return `${ACCOUNT_KIND_LABELS[account.kind] || account.kind} • ${formatAccountHolder(account.holder)}`;
 }
 
 function renderCalendar() {
@@ -2910,6 +2935,30 @@ function renderSharedDebtCards() {
   `;
 }
 
+function computeAccountMetrics(owner) {
+  const income = sumBy(
+    state.paychecks.filter((item) => item.owner === owner),
+    (item) => monthlyAmount(item.amount, item.frequency)
+  );
+  const bills = sumBy(
+    state.bills.filter((item) => item.owner === owner),
+    (item) => monthlyAmount(item.amount, item.frequency)
+  );
+  const goalContributions = state.savingsGoals.filter((item) => item.owner === owner);
+  const savings = sumBy(goalContributions, (item) => monthlyAmount(item.contributionAmount, item.frequency));
+  const savingsFlow = sumBy(goalContributions, (item) =>
+    monthlyAmount(item.contributionAmount, item.frequency) *
+    (isSavingsGoalAccount(item) ? 1 : -1)
+  );
+
+  return {
+    income,
+    bills,
+    savings,
+    net: income - bills + savingsFlow,
+  };
+}
+
 function computeMetrics() {
   const monthlyIncome = sumBy(state.paychecks, (item) => monthlyAmount(item.amount, item.frequency));
   const monthlyBills = sumBy(state.bills, (item) => monthlyAmount(item.amount, item.frequency));
@@ -2938,20 +2987,7 @@ function computeMetrics() {
 function computeOwnerMetrics() {
   return getActiveAccounts().map((account) => {
     const owner = account.owner;
-    const income = sumBy(
-      state.paychecks.filter((item) => item.owner === owner),
-      (item) => monthlyAmount(item.amount, item.frequency)
-    );
-    const bills = sumBy(
-      state.bills.filter((item) => item.owner === owner),
-      (item) => monthlyAmount(item.amount, item.frequency)
-    );
-    const goalContributions = state.savingsGoals.filter((item) => item.owner === owner);
-    const savings = sumBy(goalContributions, (item) => monthlyAmount(item.contributionAmount, item.frequency));
-    const savingsFlow = sumBy(goalContributions, (item) =>
-      monthlyAmount(item.contributionAmount, item.frequency) *
-      (isSavingsGoalAccount(item) ? 1 : -1)
-    );
+    const metrics = computeAccountMetrics(owner);
     const shared = isSharedHolder(account.holder);
     const projection = buildProjection(state.household.projectionMonths || 6, owner);
     const lowestPoint = projection.points.reduce((lowest, point) => {
@@ -2969,10 +3005,10 @@ function computeOwnerMetrics() {
       currentBalance: getAccountBalance(owner),
       projectedBalance,
       lowestBalance: lowestPoint ? lowestPoint.balance : getAccountBalance(owner),
-      income,
-      bills,
-      savings,
-      net: income - bills + savingsFlow,
+      income: metrics.income,
+      bills: metrics.bills,
+      savings: metrics.savings,
+      net: metrics.net,
       note: shared
         ? `${ACCOUNT_KIND_LABELS[account.kind] || account.kind} commun projeté sur ${state.household.projectionMonths || 6} mois.`
         : `${ACCOUNT_KIND_LABELS[account.kind] || account.kind} de ${formatAccountHolder(account.holder)} projeté sur ${state.household.projectionMonths || 6} mois.`,
@@ -3111,7 +3147,7 @@ function compareEvents(a, b) {
   return (order[a.kind] ?? 9) - (order[b.kind] ?? 9);
 }
 
-function drawProjectionChart(points, safetyBuffer) {
+function drawProjectionChart(points) {
   const svg = $("projectionChart");
   if (!points.length) {
     svg.innerHTML = "";
@@ -3121,8 +3157,8 @@ function drawProjectionChart(points, safetyBuffer) {
   const width = 760;
   const height = 340;
   const balances = points.map((point) => point.balance);
-  const minBalance = Math.min(...balances, safetyBuffer || 0);
-  const maxBalance = Math.max(...balances, safetyBuffer || 0, 1);
+  const minBalance = Math.min(...balances);
+  const maxBalance = Math.max(...balances, minBalance + 1);
   const span = maxBalance - minBalance || 1;
   const yAxisValues = Array.from({ length: 5 }, (_, index) => maxBalance - (index / 4) * span);
   const yAxisLabelWidth = Math.max(...yAxisValues.map((value) => formatCurrency(value).length)) * 8.1;
@@ -3162,13 +3198,6 @@ function drawProjectionChart(points, safetyBuffer) {
     )
     .join("");
 
-  const safetyLine = safetyBuffer
-    ? `
-        <line x1="${padding.left}" y1="${scaleY(safetyBuffer)}" x2="${width - padding.right}" y2="${scaleY(safetyBuffer)}" stroke="#d96d30" stroke-width="2" stroke-dasharray="6 6" />
-        <text x="${width - padding.right}" y="${scaleY(safetyBuffer) - 8}" fill="#d96d30" font-size="12" text-anchor="end">Coussin cible</text>
-      `
-    : "";
-
   svg.innerHTML = `
     <defs>
       <linearGradient id="balanceFill" x1="0" x2="0" y1="0" y2="1">
@@ -3177,7 +3206,6 @@ function drawProjectionChart(points, safetyBuffer) {
       </linearGradient>
     </defs>
     ${grid}
-    ${safetyLine}
     <path d="${area}" fill="url(#balanceFill)" />
     <path d="${path}" fill="none" stroke="#155e63" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
     ${points.map((point) => `<circle cx="${scaleX(point.date)}" cy="${scaleY(point.balance)}" r="4.5" fill="#155e63" />`).join("")}
@@ -3551,9 +3579,22 @@ function escapeHtml(value) {
 
 function collectReferencedAccountSeeds(input, household) {
   const seeds = [];
+  const hasExplicitSharedAccount = (input.accounts || []).some((account) => {
+    if (textValue(account.id) === "account_shared") {
+      return false;
+    }
+    return sanitizeAccountHolder(account.holder, household, account.id, account.kind, account.owner) === ACCOUNT_HOLDERS.shared;
+  });
   const pushSeed = (owner, holder, kind = "checking") => {
     const label = textValue(owner);
     if (!label) {
+      return;
+    }
+    if (
+      holder === ACCOUNT_HOLDERS.shared &&
+      label === getSharedOwnerValueFromHousehold(household) &&
+      !hasExplicitSharedAccount
+    ) {
       return;
     }
     seeds.push({
@@ -3593,7 +3634,10 @@ function collectReferencedAccountSeeds(input, household) {
 function sanitizeAccounts(inputAccounts, household, legacyCurrentBalance, referencedSeeds = []) {
   const defaults = createAccountsForHousehold(household, legacyCurrentBalance);
   const rawAccounts = Array.isArray(inputAccounts) ? inputAccounts : [];
-  const sanitized = rawAccounts.map((account) => sanitizeAccount(account, household)).filter((account) => textValue(account.owner));
+  const sanitized = rawAccounts
+    .map((account) => sanitizeAccount(account, household))
+    .filter((account) => textValue(account.owner))
+    .filter((account) => textValue(account.id) !== "account_shared");
   const merged = defaults.map((defaultAccount) => {
     const existingIndex = sanitized.findIndex(
       (account) => account.id === defaultAccount.id || textValue(account.owner) === defaultAccount.owner
@@ -3806,14 +3850,6 @@ function createAccountsForHousehold(household, legacyCurrentBalance = 0) {
       status: "active",
       balance: 0,
     },
-    {
-      id: ACCOUNT_IDS.shared,
-      owner: getSharedOwnerValueFromHousehold(household),
-      holder: ACCOUNT_HOLDERS.shared,
-      kind: "checking",
-      status: "active",
-      balance: 0,
-    },
   ];
 }
 
@@ -3827,9 +3863,6 @@ function sanitizeAccountHolder(holder, household, accountId = "", legacyKind = "
   }
   if (accountId === ACCOUNT_IDS.partnerTwo) {
     return ACCOUNT_HOLDERS.partnerTwo;
-  }
-  if (accountId === ACCOUNT_IDS.shared) {
-    return ACCOUNT_HOLDERS.shared;
   }
   if (textValue(legacyKind) === "shared" || textValue(owner) === "Compte commun") {
     return ACCOUNT_HOLDERS.shared;
@@ -3873,16 +3906,17 @@ function inferHolderFromOwner(owner, household) {
 
 function sanitizeOwnerLabel(owner, household, accounts, fallbackHolder = ACCOUNT_HOLDERS.partnerOne) {
   const value = textValue(owner);
+  const sharedOwner = getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, accounts, { includeClosed: true });
+  const fallbackOwner =
+    getDefaultOwnerForHolder(fallbackHolder, accounts, { includeClosed: true }) ||
+    getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne, accounts, { includeClosed: true }) ||
+    household.partnerOne ||
+    "Moi";
   if (value === "Compte commun") {
-    return getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, accounts, { includeClosed: true }) || getSharedOwnerValueFromHousehold(household);
+    return sharedOwner || fallbackOwner;
   }
   if (!value) {
-    return (
-      getDefaultOwnerForHolder(fallbackHolder, accounts, { includeClosed: true }) ||
-      getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne, accounts, { includeClosed: true }) ||
-      household.partnerOne ||
-      "Moi"
-    );
+    return fallbackOwner;
   }
 
   const existing = getAccountByOwner(value, accounts);
@@ -3890,7 +3924,7 @@ function sanitizeOwnerLabel(owner, household, accounts, fallbackHolder = ACCOUNT
     return existing.owner;
   }
   if (value === household.householdName) {
-    return getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, accounts, { includeClosed: true }) || value;
+    return sharedOwner || fallbackOwner;
   }
   return value;
 }
@@ -3900,7 +3934,7 @@ function getSharedOwnerValueFromHousehold(household) {
 }
 
 function getSharedOwnerValue() {
-  return getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, state.accounts, { includeClosed: true }) || getSharedOwnerValueFromHousehold(state.household);
+  return getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, state.accounts, { includeClosed: true }) || "";
 }
 
 function formatAccountHolder(holder) {
@@ -4088,9 +4122,7 @@ function getDefaultOwnerForHolder(holder, accounts = state.accounts, options = {
       ? ACCOUNT_IDS.partnerOne
       : holder === ACCOUNT_HOLDERS.partnerTwo
         ? ACCOUNT_IDS.partnerTwo
-        : holder === ACCOUNT_HOLDERS.shared
-          ? ACCOUNT_IDS.shared
-          : "";
+        : "";
   return (list.find((account) => account.id === preferredId) || list[0] || {}).owner || "";
 }
 

@@ -18,14 +18,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260318-19">
+    <link rel="stylesheet" href="styles.css?v=20260318-20">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-18 / next-bill-summary</p>
+          <p class="eyebrow">Build 2026-03-18 / account-projection</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -66,14 +66,15 @@
                <strong id="heroNextBill">Aucune</strong>
                <p id="heroNextBillCaption">Aucune facture récurrente à venir.</p>
              </div>
-            <div class="mini-stat">
-              <span>Épargne mensuelle</span>
-              <strong id="heroSavings">$0</strong>
-            </div>
-            <div class="mini-stat">
-              <span>Cap de sécurité</span>
-              <strong id="heroBuffer">-</strong>
-            </div>
+             <div class="mini-stat">
+               <span>Épargne mensuelle</span>
+               <strong id="heroSavings">$0</strong>
+             </div>
+             <div class="mini-stat">
+               <span>Compte projeté</span>
+               <strong id="heroProjectionAccount">-</strong>
+               <p id="heroProjectionAccountCaption">Choisis un compte dans la projection.</p>
+             </div>
           </div>
         </div>
       </header>
@@ -249,10 +250,6 @@
                 <option value="24">24 mois</option>
               </select>
             </label>
-            <label>
-              Coussin cible
-              <input name="safetyBuffer" type="number" step="0.01" placeholder="3000">
-            </label>
             <div class="form-actions form-actions-wide">
               <button class="button primary" type="submit">Enregistrer</button>
             </div>
@@ -278,11 +275,10 @@
           <div class="section-head">
             <div>
               <p class="section-kicker">Simulation</p>
-              <h2>Projection du compte</h2>
+              <h2>Projection par compte</h2>
             </div>
             <p>
-              Basée sur les paies récurrentes, les factures, l'épargne et les
-              mouvements ponctuels datés dans le futur.
+              Choisis un compte précis pour suivre ses entrées, ses sorties et son évolution dans le temps.
             </p>
           </div>
           <div class="projection-layout">
@@ -292,7 +288,13 @@
                   <h3>Courbe de solde</h3>
                   <p id="projectionSummary">Ajoutez des données pour lancer une projection.</p>
                 </div>
-                <span class="chart-chip" id="projectionRangeChip">0 mois</span>
+                <div class="chart-controls">
+                  <label class="chart-control" for="projectionOwnerSelect">
+                    <span>Compte à projeter</span>
+                    <select id="projectionOwnerSelect"></select>
+                  </label>
+                  <span class="chart-chip" id="projectionRangeChip">0 mois</span>
+                </div>
               </div>
               <svg id="projectionChart" viewBox="0 0 760 340" role="img" aria-label="Projection du solde"></svg>
             </div>
@@ -902,7 +904,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260317-1"></script>
-    <script src="app.js?v=20260318-19"></script>
+    <script src="app.js?v=20260318-20"></script>
   </body>
 </html>
 
