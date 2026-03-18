@@ -67,14 +67,14 @@
                <p id="heroNextBillCaption">Aucune facture récurrente à venir.</p>
              </div>
              <div class="mini-stat">
-               <span>Épargne mensuelle</span>
-               <strong id="heroSavings">$0</strong>
-             </div>
-             <div class="mini-stat">
-               <span>Compte projeté</span>
-               <strong id="heroProjectionAccount">-</strong>
-               <p id="heroProjectionAccountCaption">Choisis un compte dans la projection.</p>
-             </div>
+                <span>Épargne mensuelle</span>
+                <strong id="heroSavings">$0</strong>
+              </div>
+              <div class="mini-stat">
+                <span>Vue projetée</span>
+                <strong id="heroProjectionAccount">-</strong>
+                <p id="heroProjectionAccountCaption">Choisis un compte ou un regroupement dans la projection.</p>
+              </div>
           </div>
         </div>
       </header>
@@ -275,10 +275,10 @@
           <div class="section-head">
             <div>
               <p class="section-kicker">Simulation</p>
-              <h2>Projection par compte</h2>
+              <h2>Projection filtrée</h2>
             </div>
             <p>
-              Choisis un compte précis pour suivre ses entrées, ses sorties et son évolution dans le temps.
+              Choisis un compte précis, ou tous les comptes de Simon ou de Geneviève, pour suivre leur évolution.
             </p>
           </div>
           <div class="projection-layout">
@@ -290,7 +290,7 @@
                 </div>
                 <div class="chart-controls">
                   <label class="chart-control" for="projectionOwnerSelect">
-                    <span>Compte à projeter</span>
+                    <span>Vue à projeter</span>
                     <select id="projectionOwnerSelect"></select>
                   </label>
                   <span class="chart-chip" id="projectionRangeChip">0 mois</span>
@@ -636,6 +636,10 @@
                 <select id="savingsOwnerSelect" name="owner" class="owner-select"></select>
               </label>
               <label>
+                Compte source
+                <select id="savingsSourceOwnerSelect" name="sourceOwner" class="owner-select"></select>
+              </label>
+              <label>
                 Objectif
                 <input name="label" type="text" placeholder="Fonds d'urgence">
               </label>
@@ -670,6 +674,9 @@
               </label>
               <p id="savingsScopeHint" class="helper-text form-helper">
                 Choisissez la personne qui possède cette épargne. Les objectifs communs utilisent le type Commune.
+              </p>
+              <p id="savingsSourceHint" class="helper-text form-helper">
+                Choisissez le compte d'où part l'argent avant d'être placé dans cette épargne.
               </p>
               <div class="form-actions">
                 <button class="button primary" type="submit">Ajouter / mettre à jour</button>
