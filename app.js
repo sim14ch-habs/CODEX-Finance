@@ -2388,7 +2388,7 @@ function isSameDay(left, right) {
 function startOfCalendarGrid(date) {
   const start = startOfMonth(date);
   const day = start.getDay();
-  const delta = day === 0 ? -6 : 1 - day;
+  const delta = -day;
   return addDays(start, delta);
 }
 
