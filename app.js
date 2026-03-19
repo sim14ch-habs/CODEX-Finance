@@ -62,6 +62,8 @@ const MORTGAGE_PREPAYMENT_FREQUENCY_LABELS = {
   regular: "Même que vos versements",
 };
 const DEFAULT_MORTGAGE_TOOL = {
+  scenarioId: "",
+  scenarioName: "",
   principal: 100000,
   interestRate: 5,
   amortizationYears: 25,
@@ -250,6 +252,7 @@ const DEFAULT_STATE = {
   transfers: [],
   activityLog: [],
   mortgageTool: { ...DEFAULT_MORTGAGE_TOOL },
+  mortgageScenarios: [],
 };
 
 const FREQUENCY_LABELS = {
@@ -388,6 +391,9 @@ function sanitizeState(input) {
       ? input.activityLog.map(sanitizeActivityLogEntry).filter(Boolean).slice(0, ACTIVITY_LOG_LIMIT)
       : [],
     mortgageTool: sanitizeMortgageTool(input.mortgageTool),
+    mortgageScenarios: Array.isArray(input.mortgageScenarios)
+      ? input.mortgageScenarios.map(sanitizeMortgageScenario).filter(Boolean).sort(sortMortgageScenarios)
+      : [],
   };
 }
 
@@ -426,6 +432,8 @@ function bindEvents() {
   $("mortgageForm").addEventListener("change", handleMortgageFormInput);
   $("mortgageResetBtn").addEventListener("click", resetMortgageTool);
   $("mortgageExampleBtn").addEventListener("click", loadMortgageAcfcExample);
+  $("mortgageSaveScenarioBtn").addEventListener("click", saveMortgageScenario);
+  $("mortgageSaveCopyBtn").addEventListener("click", () => saveMortgageScenario({ forceDuplicate: true }));
 
   document.querySelectorAll(".form-reset").forEach((button) => {
     button.addEventListener("click", () => resetForm(button.dataset.form));
@@ -463,6 +471,7 @@ function bindEvents() {
   document.addEventListener("click", handleTableActions);
   document.addEventListener("click", handleQuickActionClicks);
   document.addEventListener("click", handleCompactTableToggle);
+  document.addEventListener("click", handleMortgageScenarioActions);
 
   $("cloudAuthForm").addEventListener("submit", handleCloudAuthSubmit);
   $("cloudCreateForm").addEventListener("submit", handleCreateHouseholdSubmit);
@@ -3108,6 +3117,8 @@ function loadMortgageAcfcExample() {
 
 function readMortgageForm(form) {
   return sanitizeMortgageTool({
+    scenarioId: form.elements.scenarioId.value,
+    scenarioName: form.elements.scenarioName.value,
     principal: form.elements.principal.value,
     interestRate: form.elements.interestRate.value,
     amortizationYears: form.elements.amortizationYears.value,
@@ -3133,6 +3144,8 @@ function readMortgageForm(form) {
 function renderMortgageTool() {
   populateMortgageForm();
   syncMortgageHelperText(state.mortgageTool);
+  syncMortgageScenarioHelper(state.mortgageTool);
+  renderMortgageScenarios();
   renderMortgageToolOutput(state.mortgageTool);
 }
 
@@ -3143,6 +3156,8 @@ function populateMortgageForm() {
   }
 
   const mortgage = sanitizeMortgageTool(state.mortgageTool);
+  form.elements.scenarioId.value = mortgage.scenarioId || "";
+  form.elements.scenarioName.value = mortgage.scenarioName || "";
   form.elements.principal.value = mortgage.principal || mortgage.principal === 0 ? String(mortgage.principal) : "";
   form.elements.interestRate.value = mortgage.interestRate || mortgage.interestRate === 0 ? String(mortgage.interestRate) : "";
   form.elements.amortizationYears.value =
@@ -3164,6 +3179,185 @@ function populateMortgageForm() {
   form.elements.internetMonthly.value = String(mortgage.internetMonthly || 0);
   form.elements.maintenanceAnnual.value = String(mortgage.maintenanceAnnual || 0);
   form.elements.otherHousingMonthly.value = String(mortgage.otherHousingMonthly || 0);
+}
+
+function syncMortgageScenarioHelper(mortgage = state.mortgageTool) {
+  const target = $("mortgageScenarioHelper");
+  if (!target) {
+    return;
+  }
+
+  const scenario = (state.mortgageScenarios || []).find((item) => item.id === mortgage.scenarioId);
+  if (scenario) {
+    target.textContent = `Scénario courant: ${scenario.name} • mis à jour le ${formatCloudDateTime(scenario.updatedAt)} • synchronisé avec le budget partagé.`;
+    return;
+  }
+
+  target.textContent = "Les scénarios enregistrés suivent l'import/export JSON et la synchro cloud du budget.";
+}
+
+function renderMortgageScenarios() {
+  const summaryTarget = $("mortgageScenarioSummary");
+  const listTarget = $("mortgageScenariosList");
+  if (!summaryTarget || !listTarget) {
+    return;
+  }
+
+  const scenarios = getMortgageScenarios();
+  summaryTarget.textContent = scenarios.length
+    ? `${scenarios.length} scénario${scenarios.length > 1 ? "s" : ""} enregistré${scenarios.length > 1 ? "s" : ""} et prêt${scenarios.length > 1 ? "s" : ""} à recharger.`
+    : "Enregistre tes maisons test pour les retrouver rapidement sur tous tes appareils.";
+
+  if (!scenarios.length) {
+    listTarget.innerHTML = `<article class="empty-state">Aucun scénario sauvegardé pour l'instant. Donne un nom à ta simulation puis clique sur Sauvegarder ce scénario.</article>`;
+    return;
+  }
+
+  listTarget.innerHTML = scenarios
+    .map((scenario) => {
+      const result = calculateMortgageScenario(scenario.settings);
+      const isActive = state.mortgageTool.scenarioId === scenario.id;
+      const monthlyCost = result.isValid ? formatCurrency(result.carryingCosts.totalMonthlyHousingCost) : "-";
+      const payment = result.isValid ? formatCurrency(result.regularPayment) : "-";
+      return `
+        <article class="mortgage-scenario-card${isActive ? " is-active" : ""}">
+          <div class="mortgage-scenario-head">
+            <div>
+              <strong>${escapeHtml(scenario.name)}</strong>
+              <p>${escapeHtml(formatCloudDateTime(scenario.updatedAt))}</p>
+            </div>
+            ${isActive ? `<span class="status-chip success">Actif</span>` : ""}
+          </div>
+          <div class="badge-row">
+            <span class="badge">Hypothèque ${escapeHtml(payment)}</span>
+            <span class="badge">Tout inclus ${escapeHtml(monthlyCost)}</span>
+          </div>
+          <div class="mortgage-scenario-meta">
+            <span>${escapeHtml(formatCurrency(scenario.settings.principal))}</span>
+            <span>${escapeHtml(formatPercent(scenario.settings.interestRate, 2))}</span>
+            <span>${escapeHtml(getMortgageFrequencyDefinition(scenario.settings.paymentFrequency).label)}</span>
+          </div>
+          <div class="table-actions">
+            <button class="table-button edit" type="button" data-mortgage-scenario-action="load" data-id="${escapeHtml(scenario.id)}">Charger</button>
+            <button class="table-button delete" type="button" data-mortgage-scenario-action="delete" data-id="${escapeHtml(scenario.id)}">Supprimer</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function saveMortgageScenario(options = {}) {
+  const mortgage = readMortgageForm($("mortgageForm"));
+  const scenarioName = textValue(mortgage.scenarioName);
+  if (!scenarioName) {
+    window.alert("Ajoute un nom de scénario avant de l'enregistrer.");
+    return;
+  }
+
+  pushUndoSnapshot("Avant sauvegarde d'un scénario hypothécaire");
+  const existingScenarios = getMortgageScenarios();
+  const now = new Date().toISOString();
+  let scenarioId = options.forceDuplicate ? "" : textValue(mortgage.scenarioId);
+  let existing = scenarioId ? existingScenarios.find((item) => item.id === scenarioId) : null;
+
+  if (!existing && !options.forceDuplicate) {
+    existing = existingScenarios.find((item) => item.name.toLowerCase() === scenarioName.toLowerCase()) || null;
+  }
+
+  if (existing) {
+    scenarioId = existing.id;
+  } else {
+    scenarioId = createId();
+  }
+
+  const savedScenario = sanitizeMortgageScenario({
+    id: scenarioId,
+    name: scenarioName,
+    savedAt: existing ? existing.savedAt : now,
+    updatedAt: now,
+    settings: {
+      ...mortgage,
+      scenarioId,
+      scenarioName,
+    },
+  });
+
+  state.mortgageScenarios = [
+    savedScenario,
+    ...existingScenarios.filter((item) => item.id !== scenarioId),
+  ].sort(sortMortgageScenarios);
+  state.mortgageTool = sanitizeMortgageTool({
+    ...savedScenario.settings,
+    scenarioId,
+    scenarioName,
+  });
+  recordActivity(
+    existing ? "Scénario hypothécaire mis à jour" : "Scénario hypothécaire enregistré",
+    `${scenarioName} a été ${existing ? "mis à jour" : "ajouté"} dans la bibliothèque des simulations.`
+  );
+  persistState();
+  renderMortgageTool();
+}
+
+function handleMortgageScenarioActions(event) {
+  const button = event.target.closest("[data-mortgage-scenario-action]");
+  if (!button) {
+    return;
+  }
+
+  const action = button.dataset.mortgageScenarioAction;
+  const id = button.dataset.id;
+  if (!action || !id) {
+    return;
+  }
+
+  const scenario = getMortgageScenarios().find((item) => item.id === id);
+  if (!scenario) {
+    return;
+  }
+
+  if (action === "load") {
+    pushUndoSnapshot("Avant chargement d'un scénario hypothécaire");
+    state.mortgageTool = sanitizeMortgageTool({
+      ...scenario.settings,
+      scenarioId: scenario.id,
+      scenarioName: scenario.name,
+    });
+    recordActivity(
+      "Scénario hypothécaire chargé",
+      `${scenario.name} est maintenant le scénario actif dans l'outil hypothécaire.`
+    );
+    persistState();
+    renderMortgageTool();
+    return;
+  }
+
+  if (action === "delete") {
+    if (!window.confirm(`Supprimer le scénario ${scenario.name} ?`)) {
+      return;
+    }
+
+    pushUndoSnapshot("Avant suppression d'un scénario hypothécaire");
+    state.mortgageScenarios = getMortgageScenarios().filter((item) => item.id !== id);
+    if (state.mortgageTool.scenarioId === id) {
+      state.mortgageTool = sanitizeMortgageTool({
+        ...state.mortgageTool,
+        scenarioId: "",
+      });
+    }
+    recordActivity(
+      "Scénario hypothécaire supprimé",
+      `${scenario.name} a été retiré de la bibliothèque des simulations.`,
+      { tone: "warning" }
+    );
+    persistState();
+    renderMortgageTool();
+  }
+}
+
+function getMortgageScenarios() {
+  return (state.mortgageScenarios || []).slice().sort(sortMortgageScenarios);
 }
 
 function syncMortgageHelperText(mortgage = state.mortgageTool) {
@@ -3718,6 +3912,8 @@ function sanitizeMortgageTool(input) {
   const paymentFrequency = textValue(input.paymentFrequency);
   const prepaymentFrequency = textValue(input.prepaymentFrequency);
   return {
+    scenarioId: textValue(input.scenarioId),
+    scenarioName: textValue(input.scenarioName),
     principal: Math.max(0, parseAmount(input.principal ?? DEFAULT_MORTGAGE_TOOL.principal)),
     interestRate: Math.max(0, parseAmount(input.interestRate ?? DEFAULT_MORTGAGE_TOOL.interestRate)),
     amortizationYears: clampInteger(
@@ -3763,6 +3959,32 @@ function sanitizeMortgageTool(input) {
       parseAmount(input.otherHousingMonthly ?? DEFAULT_MORTGAGE_TOOL.otherHousingMonthly)
     ),
   };
+}
+
+function sanitizeMortgageScenario(input) {
+  const name = textValue(input && input.name);
+  if (!name) {
+    return null;
+  }
+
+  const id = textValue(input.id) || createId();
+  const settings = sanitizeMortgageTool({
+    ...(input.settings || {}),
+    scenarioId: id,
+    scenarioName: name,
+  });
+
+  return {
+    id,
+    name,
+    savedAt: textValue(input.savedAt) || new Date().toISOString(),
+    updatedAt: textValue(input.updatedAt) || textValue(input.savedAt) || new Date().toISOString(),
+    settings,
+  };
+}
+
+function sortMortgageScenarios(left, right) {
+  return new Date(right.updatedAt || 0) - new Date(left.updatedAt || 0);
 }
 
 function clampInteger(value, min, max) {

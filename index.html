@@ -18,14 +18,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260319-2">
+    <link rel="stylesheet" href="styles.css?v=20260319-3">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-19 / mortgage-calculator</p>
+          <p class="eyebrow">Build 2026-03-19 / mortgage-scenarios</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -350,6 +350,7 @@
           </div>
           <div class="planner-layout mortgage-layout">
             <form id="mortgageForm" class="planner-form mortgage-form" novalidate>
+              <input name="scenarioId" type="hidden">
               <label>
                 Montant du prêt hypothécaire
                 <input name="principal" type="number" min="0" step="0.01" placeholder="100000">
@@ -465,13 +466,24 @@
                 Autres frais mensuels
                 <input name="otherHousingMonthly" type="number" min="0" step="0.01" placeholder="0">
               </label>
+              <label class="mortgage-form-span">
+                Nom du scénario
+                <input name="scenarioName" type="text" placeholder="Maison 1 - 350k">
+              </label>
               <div class="form-actions">
                 <button class="button primary" type="submit">Calculer</button>
                 <button id="mortgageResetBtn" class="button ghost" type="button">Réinitialiser</button>
                 <button id="mortgageExampleBtn" class="button secondary" type="button">Charger l'exemple ACFC</button>
               </div>
+              <div class="form-actions">
+                <button id="mortgageSaveScenarioBtn" class="button secondary" type="button">Sauvegarder ce scénario</button>
+                <button id="mortgageSaveCopyBtn" class="button ghost" type="button">Sauvegarder comme nouveau</button>
+              </div>
               <p id="mortgageHelperText" class="helper-text form-helper mortgage-helper">
                 Les remboursements anticipés peuvent être ponctuels, annuels ou ajoutés à chaque versement régulier.
+              </p>
+              <p id="mortgageScenarioHelper" class="helper-text form-helper mortgage-helper">
+                Les scénarios enregistrés suivent l'import/export JSON et la synchro cloud du budget.
               </p>
             </form>
 
@@ -489,6 +501,17 @@
           <div id="mortgageSummaryCards" class="calendar-summary mortgage-summary"></div>
 
           <div class="mortgage-report-grid">
+            <article class="mortgage-block">
+              <div class="mortgage-block-head">
+                <div>
+                  <p class="section-kicker">Scénarios</p>
+                  <h3>Simulations enregistrées</h3>
+                </div>
+                <p id="mortgageScenarioSummary">Enregistre tes maisons test pour les retrouver rapidement sur tous tes appareils.</p>
+              </div>
+              <div id="mortgageScenariosList" class="mortgage-scenario-list"></div>
+            </article>
+
             <article class="mortgage-block">
               <div class="mortgage-block-head">
                 <div>
@@ -1160,7 +1183,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260318-2"></script>
-    <script src="app.js?v=20260319-2"></script>
+    <script src="app.js?v=20260319-3"></script>
   </body>
 </html>
 

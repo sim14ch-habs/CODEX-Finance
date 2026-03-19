@@ -635,6 +635,51 @@ textarea {
   color: var(--muted);
 }
 
+.mortgage-scenario-list {
+  display: grid;
+  gap: 12px;
+}
+
+.mortgage-scenario-card {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(19, 35, 29, 0.08);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.mortgage-scenario-card.is-active {
+  border-color: rgba(21, 94, 99, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(21, 94, 99, 0.08);
+}
+
+.mortgage-scenario-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.mortgage-scenario-head strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+.mortgage-scenario-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.mortgage-scenario-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .calendar-weekdays,
 .calendar-grid {
   padding: 0 28px 28px;
