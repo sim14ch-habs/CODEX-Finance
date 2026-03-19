@@ -22,6 +22,66 @@ const ACCOUNT_STATUS_LABELS = {
 const ACTIVITY_LOG_LIMIT = 60;
 const UNDO_STACK_LIMIT = 20;
 const COMPACT_TABLE_LIMIT = 5;
+const MORTGAGE_PAYMENT_FREQUENCIES = {
+  accelerated_weekly: {
+    label: "Accélérée à la semaine",
+    periodsPerYear: 52,
+    mode: "accelerated",
+    divisor: 4,
+  },
+  weekly: {
+    label: "Hebdomadaire (à la semaine)",
+    periodsPerYear: 52,
+    mode: "regular",
+  },
+  accelerated_biweekly: {
+    label: "Accélérée aux deux semaines",
+    periodsPerYear: 26,
+    mode: "accelerated",
+    divisor: 2,
+  },
+  biweekly: {
+    label: "Aux deux semaines",
+    periodsPerYear: 26,
+    mode: "regular",
+  },
+  semimonthly: {
+    label: "Bi-mensuelle (24x par année)",
+    periodsPerYear: 24,
+    mode: "regular",
+  },
+  monthly: {
+    label: "Mensuelle (12x par année)",
+    periodsPerYear: 12,
+    mode: "regular",
+  },
+};
+const MORTGAGE_PREPAYMENT_FREQUENCY_LABELS = {
+  once: "Une seule fois",
+  yearly: "À chaque année",
+  regular: "Même que vos versements",
+};
+const DEFAULT_MORTGAGE_TOOL = {
+  principal: 100000,
+  interestRate: 5,
+  amortizationYears: 25,
+  amortizationMonths: 0,
+  paymentFrequency: "monthly",
+  termYears: 5,
+  prepaymentAmount: 0,
+  prepaymentFrequency: "once",
+  prepaymentStartPayment: 1,
+  propertyTaxAnnual: 0,
+  schoolTaxAnnual: 0,
+  homeInsuranceMonthly: 0,
+  heatingMonthly: 0,
+  electricityMonthly: 0,
+  waterWasteMonthly: 0,
+  condoFeesMonthly: 0,
+  internetMonthly: 0,
+  maintenanceAnnual: 0,
+  otherHousingMonthly: 0,
+};
 
 const DEFAULT_STATE = {
   household: {
@@ -189,6 +249,7 @@ const DEFAULT_STATE = {
   transactions: [],
   transfers: [],
   activityLog: [],
+  mortgageTool: { ...DEFAULT_MORTGAGE_TOOL },
 };
 
 const FREQUENCY_LABELS = {
@@ -326,6 +387,7 @@ function sanitizeState(input) {
     activityLog: Array.isArray(input.activityLog)
       ? input.activityLog.map(sanitizeActivityLogEntry).filter(Boolean).slice(0, ACTIVITY_LOG_LIMIT)
       : [],
+    mortgageTool: sanitizeMortgageTool(input.mortgageTool),
   };
 }
 
@@ -359,6 +421,11 @@ function bindEvents() {
     upsertCollection(event, "transfers", readTransferForm)
   );
   $("goalPlannerForm").addEventListener("submit", handleGoalPlannerSubmit);
+  $("mortgageForm").addEventListener("submit", handleMortgageFormSubmit);
+  $("mortgageForm").addEventListener("input", handleMortgageFormInput);
+  $("mortgageForm").addEventListener("change", handleMortgageFormInput);
+  $("mortgageResetBtn").addEventListener("click", resetMortgageTool);
+  $("mortgageExampleBtn").addEventListener("click", loadMortgageAcfcExample);
 
   document.querySelectorAll(".form-reset").forEach((button) => {
     button.addEventListener("click", () => resetForm(button.dataset.form));
@@ -1643,6 +1710,7 @@ function renderAll() {
   renderAlerts();
   renderProjection();
   renderCalendar();
+  renderMortgageTool();
   renderContributors();
   renderSharedDebtCards();
   renderAccountsTable();
@@ -3009,6 +3077,741 @@ function renderCalendarEvent(event) {
 
 function getCalendarDayDelta(event) {
   return event.kind === "transfer" ? 0 : event.delta || 0;
+}
+
+function handleMortgageFormSubmit(event) {
+  event.preventDefault();
+  state.mortgageTool = readMortgageForm(event.currentTarget);
+  persistState();
+  syncMortgageHelperText(state.mortgageTool);
+  renderMortgageToolOutput(state.mortgageTool);
+}
+
+function handleMortgageFormInput(event) {
+  state.mortgageTool = readMortgageForm(event.currentTarget);
+  persistState({ skipCloud: true });
+  syncMortgageHelperText(state.mortgageTool);
+  renderMortgageToolOutput(state.mortgageTool);
+}
+
+function resetMortgageTool() {
+  state.mortgageTool = { ...DEFAULT_MORTGAGE_TOOL };
+  persistState();
+  renderMortgageTool();
+}
+
+function loadMortgageAcfcExample() {
+  state.mortgageTool = { ...DEFAULT_MORTGAGE_TOOL };
+  persistState();
+  renderMortgageTool();
+}
+
+function readMortgageForm(form) {
+  return sanitizeMortgageTool({
+    principal: form.elements.principal.value,
+    interestRate: form.elements.interestRate.value,
+    amortizationYears: form.elements.amortizationYears.value,
+    amortizationMonths: form.elements.amortizationMonths.value,
+    paymentFrequency: form.elements.paymentFrequency.value,
+    termYears: form.elements.termYears.value,
+    prepaymentAmount: form.elements.prepaymentAmount.value,
+    prepaymentFrequency: form.elements.prepaymentFrequency.value,
+    prepaymentStartPayment: form.elements.prepaymentStartPayment.value,
+    propertyTaxAnnual: form.elements.propertyTaxAnnual.value,
+    schoolTaxAnnual: form.elements.schoolTaxAnnual.value,
+    homeInsuranceMonthly: form.elements.homeInsuranceMonthly.value,
+    heatingMonthly: form.elements.heatingMonthly.value,
+    electricityMonthly: form.elements.electricityMonthly.value,
+    waterWasteMonthly: form.elements.waterWasteMonthly.value,
+    condoFeesMonthly: form.elements.condoFeesMonthly.value,
+    internetMonthly: form.elements.internetMonthly.value,
+    maintenanceAnnual: form.elements.maintenanceAnnual.value,
+    otherHousingMonthly: form.elements.otherHousingMonthly.value,
+  });
+}
+
+function renderMortgageTool() {
+  populateMortgageForm();
+  syncMortgageHelperText(state.mortgageTool);
+  renderMortgageToolOutput(state.mortgageTool);
+}
+
+function populateMortgageForm() {
+  const form = $("mortgageForm");
+  if (!form) {
+    return;
+  }
+
+  const mortgage = sanitizeMortgageTool(state.mortgageTool);
+  form.elements.principal.value = mortgage.principal || mortgage.principal === 0 ? String(mortgage.principal) : "";
+  form.elements.interestRate.value = mortgage.interestRate || mortgage.interestRate === 0 ? String(mortgage.interestRate) : "";
+  form.elements.amortizationYears.value =
+    mortgage.amortizationYears || mortgage.amortizationYears === 0 ? String(mortgage.amortizationYears) : "";
+  form.elements.amortizationMonths.value = String(mortgage.amortizationMonths || 0);
+  form.elements.paymentFrequency.value = mortgage.paymentFrequency;
+  form.elements.termYears.value = String(mortgage.termYears);
+  form.elements.prepaymentAmount.value =
+    mortgage.prepaymentAmount || mortgage.prepaymentAmount === 0 ? String(mortgage.prepaymentAmount) : "";
+  form.elements.prepaymentFrequency.value = mortgage.prepaymentFrequency;
+  form.elements.prepaymentStartPayment.value = String(mortgage.prepaymentStartPayment || 1);
+  form.elements.propertyTaxAnnual.value = String(mortgage.propertyTaxAnnual || 0);
+  form.elements.schoolTaxAnnual.value = String(mortgage.schoolTaxAnnual || 0);
+  form.elements.homeInsuranceMonthly.value = String(mortgage.homeInsuranceMonthly || 0);
+  form.elements.heatingMonthly.value = String(mortgage.heatingMonthly || 0);
+  form.elements.electricityMonthly.value = String(mortgage.electricityMonthly || 0);
+  form.elements.waterWasteMonthly.value = String(mortgage.waterWasteMonthly || 0);
+  form.elements.condoFeesMonthly.value = String(mortgage.condoFeesMonthly || 0);
+  form.elements.internetMonthly.value = String(mortgage.internetMonthly || 0);
+  form.elements.maintenanceAnnual.value = String(mortgage.maintenanceAnnual || 0);
+  form.elements.otherHousingMonthly.value = String(mortgage.otherHousingMonthly || 0);
+}
+
+function syncMortgageHelperText(mortgage = state.mortgageTool) {
+  const target = $("mortgageHelperText");
+  if (!target) {
+    return;
+  }
+
+  const definition = getMortgageFrequencyDefinition(mortgage.paymentFrequency);
+  const amount = parseAmount(mortgage.prepaymentAmount);
+  const startPayment = Math.max(1, Math.floor(parseAmount(mortgage.prepaymentStartPayment) || 1));
+
+  if (amount <= 0) {
+    target.textContent = "Aucun remboursement anticipé n'est appliqué. Les résultats montrent seulement le plan régulier.";
+    return;
+  }
+
+  if (mortgage.prepaymentFrequency === "regular") {
+    target.textContent = `${formatCurrency(amount)} seront ajoutés à chaque versement à partir du versement #${startPayment}.`;
+    return;
+  }
+
+  if (mortgage.prepaymentFrequency === "yearly") {
+    target.textContent = `${formatCurrency(amount)} seront ajoutés une fois par année, soit tous les ${definition.periodsPerYear} versements, à partir du versement #${startPayment}.`;
+    return;
+  }
+
+  target.textContent = `${formatCurrency(amount)} seront ajoutés une seule fois au versement #${startPayment}.`;
+}
+
+function renderMortgageToolOutput(mortgage = state.mortgageTool) {
+  const result = calculateMortgageScenario(mortgage);
+  const quickStatsTarget = $("mortgageQuickStats");
+  const summaryCardsTarget = $("mortgageSummaryCards");
+  const carryingCostTarget = $("mortgageCarryingCostTable");
+  const overviewTarget = $("mortgageOverviewTable");
+  const narrativeTarget = $("mortgageNarrative");
+  const annualTarget = $("mortgageAnnualTable");
+  const paymentsTarget = $("mortgagePaymentsTable");
+
+  if (!result.isValid) {
+    $("mortgageRegularPayment").textContent = "-";
+    $("mortgageLead").textContent = "Entre un capital et un amortissement valides pour obtenir une estimation.";
+    if (quickStatsTarget) {
+      quickStatsTarget.innerHTML = "";
+    }
+    if (summaryCardsTarget) {
+      summaryCardsTarget.innerHTML = `
+        <article class="calendar-summary-card">
+          <span>Calcul</span>
+          <strong>En attente</strong>
+        </article>
+      `;
+    }
+    if (carryingCostTarget) {
+      carryingCostTarget.innerHTML = `
+        <tr>
+          <td colspan="3">Ajoute des frais de logement pour afficher le coût mensuel tout inclus.</td>
+        </tr>
+      `;
+    }
+    if (overviewTarget) {
+      overviewTarget.innerHTML = `
+        <tr>
+          <td colspan="3">Le calcul apparaîtra ici dès qu'un capital et un amortissement valides seront saisis.</td>
+        </tr>
+      `;
+    }
+    if (narrativeTarget) {
+      narrativeTarget.innerHTML = `
+        <li>Entre un montant de prêt, un taux et une période d'amortissement pour lancer le scénario.</li>
+      `;
+    }
+    if (annualTarget) {
+      annualTarget.innerHTML = `
+        <tr>
+          <td colspan="6">Aucun résumé annuel disponible pour l'instant.</td>
+        </tr>
+      `;
+    }
+    if (paymentsTarget) {
+      paymentsTarget.innerHTML = `
+        <tr>
+          <td colspan="6">Aucun versement à afficher pour l'instant.</td>
+        </tr>
+      `;
+    }
+    return;
+  }
+
+  $("mortgageRegularPayment").textContent = formatCurrency(result.regularPayment);
+  $("mortgageLead").textContent = `${formatCurrency(result.regularPayment)} ${getMortgagePaymentUnitLabel(result.settings.paymentFrequency)} sur un prêt de ${formatCurrency(result.settings.principal)}.`;
+
+  if (quickStatsTarget) {
+    quickStatsTarget.innerHTML = [
+      {
+        label: "Taux par versement",
+        value: formatPercent(result.periodicRate * 100, 4),
+      },
+      {
+        label: "Solde fin de terme",
+        value: formatCurrency(result.endOfTermBalance),
+      },
+      {
+        label: "Économie d'intérêts",
+        value: formatCurrency(result.interestSaved),
+      },
+      {
+        label: "Temps gagné",
+        value: result.timeSavedLabel,
+      },
+    ]
+      .map(
+        (item) => `
+          <div class="planner-stat">
+            <span>${escapeHtml(item.label)}</span>
+            <strong>${escapeHtml(item.value)}</strong>
+          </div>
+        `
+      )
+      .join("");
+  }
+
+  if (summaryCardsTarget) {
+    summaryCardsTarget.innerHTML = [
+      {
+        label: "Paiement hypothécaire",
+        value: formatCurrency(result.regularPayment),
+      },
+      {
+        label: "Autres frais / mois",
+        value: formatCurrency(result.carryingCosts.monthlyExtras),
+      },
+      {
+        label: "Maison tout inclus / mois",
+        value: formatCurrency(result.carryingCosts.totalMonthlyHousingCost),
+      },
+      {
+        label: "Maison tout inclus / an",
+        value: formatCurrency(result.carryingCosts.totalAnnualHousingCost),
+      },
+    ]
+      .map(
+        (card) => `
+          <article class="calendar-summary-card">
+            <span>${escapeHtml(card.label)}</span>
+            <strong>${escapeHtml(card.value)}</strong>
+          </article>
+        `
+      )
+      .join("");
+  }
+
+  if (carryingCostTarget) {
+    carryingCostTarget.innerHTML = result.carryingCosts.breakdown
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.label)}</td>
+            <td>${escapeHtml(formatCurrency(row.monthly))}</td>
+            <td>${escapeHtml(formatCurrency(row.annual))}</td>
+          </tr>
+        `
+      )
+      .join("");
+  }
+
+  if (overviewTarget) {
+    const overviewRows = [
+      {
+        label: "Nombre de versements",
+        term: formatInteger(result.termTotals.paymentCount),
+        amortization: formatInteger(result.totals.paymentCount),
+      },
+      {
+        label: "Versement hypothécaire",
+        term: formatCurrency(result.regularPayment),
+        amortization: formatCurrency(result.regularPayment),
+      },
+      {
+        label: "Remboursement anticipé",
+        term: formatCurrency(result.termTotals.prepayment),
+        amortization: formatCurrency(result.totals.prepayment),
+      },
+      {
+        label: "Paiement de capital",
+        term: formatCurrency(result.termTotals.principal),
+        amortization: formatCurrency(result.totals.principal),
+      },
+      {
+        label: "Paiement de frais d'intérêt",
+        term: formatCurrency(result.termTotals.interest),
+        amortization: formatCurrency(result.totals.interest),
+      },
+      {
+        label: "Coût total",
+        term: formatCurrency(result.termTotals.totalPaid),
+        amortization: formatCurrency(result.totals.totalPaid),
+      },
+    ];
+
+    overviewTarget.innerHTML = overviewRows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.label)}</td>
+            <td>${escapeHtml(row.term)}</td>
+            <td>${escapeHtml(row.amortization)}</td>
+          </tr>
+        `
+      )
+      .join("");
+  }
+
+  if (narrativeTarget) {
+    const narrativeItems = [
+      `Au cours de la période d'amortissement de ${result.requestedDurationLabel}, vous auriez ${result.totals.paymentCount} versement${result.totals.paymentCount > 1 ? "s" : ""} ${getMortgageFrequencyLabelForSentence(result.settings.paymentFrequency)} de ${formatCurrency(result.regularPayment)}.`,
+      `Sur l'amortissement complet, vous paieriez ${formatCurrency(result.totals.principal)} en capital et ${formatCurrency(result.totals.interest)} en intérêts, pour un coût total de ${formatCurrency(result.totals.totalPaid)}.`,
+      `Au cours du terme de ${formatInteger(result.settings.termYears)} an${result.settings.termYears > 1 ? "s" : ""}, vous effectueriez ${result.termTotals.paymentCount} versement${result.termTotals.paymentCount > 1 ? "s" : ""} pour ${formatCurrency(result.termTotals.totalPaid)} au total.`,
+      `À la fin du terme, le solde estimé serait de ${formatCurrency(result.endOfTermBalance)}.`,
+      `Avec les frais ajoutés, la maison reviendrait à environ ${formatCurrency(result.carryingCosts.totalMonthlyHousingCost)} par mois, soit ${formatCurrency(result.carryingCosts.totalAnnualHousingCost)} par année.`,
+      result.totals.prepayment > 0
+        ? `Avec les remboursements anticipés, vous économiseriez ${formatCurrency(result.interestSaved)} d'intérêts et environ ${result.timeSavedLabel.toLowerCase()}.`
+        : "Aucun remboursement anticipé n'est appliqué dans ce scénario.",
+    ];
+
+    narrativeTarget.innerHTML = narrativeItems
+      .map((item) => `<li>${escapeHtml(item)}</li>`)
+      .join("");
+  }
+
+  if (annualTarget) {
+    annualTarget.innerHTML = result.annualSummary
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(`Année ${row.year}`)}</td>
+            <td>${escapeHtml(formatInteger(row.paymentCount))}</td>
+            <td>${escapeHtml(formatCurrency(row.principal))}</td>
+            <td>${escapeHtml(formatCurrency(row.interest))}</td>
+            <td>${escapeHtml(formatCurrency(row.prepayment))}</td>
+            <td>${escapeHtml(formatCurrency(row.endingBalance))}</td>
+          </tr>
+        `
+      )
+      .join("");
+  }
+
+  if (paymentsTarget) {
+    paymentsTarget.innerHTML = result.schedule.slice(0, 12)
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(formatInteger(row.number))}</td>
+            <td>${escapeHtml(formatCurrency(row.payment))}</td>
+            <td>${escapeHtml(formatCurrency(row.principal))}</td>
+            <td>${escapeHtml(formatCurrency(row.interest))}</td>
+            <td>${escapeHtml(formatCurrency(row.prepayment))}</td>
+            <td>${escapeHtml(formatCurrency(row.balance))}</td>
+          </tr>
+        `
+      )
+      .join("");
+  }
+}
+
+function calculateMortgageScenario(rawSettings) {
+  const settings = sanitizeMortgageTool(rawSettings);
+  const totalMonths = settings.amortizationYears * 12 + settings.amortizationMonths;
+  if (settings.principal <= 0 || totalMonths <= 0) {
+    return { isValid: false, settings };
+  }
+
+  const frequency = getMortgageFrequencyDefinition(settings.paymentFrequency);
+  const periodicRate = getMortgagePeriodicRate(settings.interestRate / 100, frequency.periodsPerYear);
+  const regularPayment = calculateMortgageRegularPayment(
+    settings.principal,
+    settings.interestRate / 100,
+    totalMonths,
+    settings.paymentFrequency
+  );
+  const schedule = buildMortgageSchedule(settings);
+  const baselineSchedule = buildMortgageSchedule({
+    ...settings,
+    prepaymentAmount: 0,
+    prepaymentFrequency: "once",
+    prepaymentStartPayment: 1,
+  });
+  const termPaymentLimit = settings.termYears * frequency.periodsPerYear;
+  const termSchedule = schedule.slice(0, termPaymentLimit);
+  const totals = summarizeMortgageSchedule(schedule);
+  const termTotals = summarizeMortgageSchedule(termSchedule);
+  const baselineTotals = summarizeMortgageSchedule(baselineSchedule);
+  const annualSummary = buildMortgageAnnualSummary(schedule, frequency.periodsPerYear);
+  const endOfTermBalance = termSchedule.length ? getLast(termSchedule).balance : settings.principal;
+  const interestSaved = Math.max(0, roundCurrency(baselineTotals.interest - totals.interest));
+  const savedPayments = Math.max(0, baselineTotals.paymentCount - totals.paymentCount);
+  const timeSavedLabel = formatMortgageDurationFromPayments(savedPayments, frequency.periodsPerYear);
+  const carryingCosts = buildMortgageCarryingCosts(settings, regularPayment);
+
+  return {
+    isValid: true,
+    settings,
+    periodicRate,
+    regularPayment,
+    schedule,
+    totals,
+    termTotals,
+    annualSummary,
+    endOfTermBalance: roundCurrency(endOfTermBalance),
+    interestSaved,
+    timeSavedLabel,
+    actualDurationLabel: formatMortgageDurationFromPayments(totals.paymentCount, frequency.periodsPerYear),
+    requestedDurationLabel: formatMortgageDurationFromMonths(totalMonths),
+    carryingCosts,
+  };
+}
+
+function buildMortgageSchedule(settings) {
+  const principal = Math.max(0, parseAmount(settings.principal));
+  const totalMonths = settings.amortizationYears * 12 + settings.amortizationMonths;
+  const frequency = getMortgageFrequencyDefinition(settings.paymentFrequency);
+  const ratePerPayment = getMortgagePeriodicRate(settings.interestRate / 100, frequency.periodsPerYear);
+  const regularPayment = calculateMortgageRegularPayment(
+    principal,
+    settings.interestRate / 100,
+    totalMonths,
+    settings.paymentFrequency
+  );
+  const plannedPrepayment = Math.max(0, parseAmount(settings.prepaymentAmount));
+  const schedule = [];
+  let balance = principal;
+  let guard = 0;
+
+  while (balance > 0.005 && guard < 4000) {
+    guard += 1;
+    const interest = roundCurrency(balance * ratePerPayment);
+    const desiredPrepayment = getMortgagePrepaymentForNumber(
+      guard,
+      plannedPrepayment,
+      settings.prepaymentFrequency,
+      settings.prepaymentStartPayment,
+      frequency.periodsPerYear
+    );
+    const scheduledPrincipal = Math.max(0, regularPayment - interest);
+    const regularPrincipal = Math.min(balance, scheduledPrincipal);
+    const actualRegularPayment = roundCurrency(interest + regularPrincipal);
+    const remainingAfterRegular = Math.max(0, balance - regularPrincipal);
+    const prepayment = roundCurrency(Math.min(desiredPrepayment, remainingAfterRegular));
+    const totalPrincipal = roundCurrency(regularPrincipal + prepayment);
+    balance = roundCurrency(Math.max(0, balance - totalPrincipal));
+
+    schedule.push({
+      number: guard,
+      payment: roundCurrency(actualRegularPayment + prepayment),
+      scheduledPayment: roundCurrency(regularPayment),
+      principal: totalPrincipal,
+      interest,
+      prepayment,
+      balance,
+    });
+  }
+
+  return schedule;
+}
+
+function summarizeMortgageSchedule(schedule) {
+  return {
+    paymentCount: schedule.length,
+    principal: roundCurrency(sumBy(schedule, (row) => row.principal)),
+    interest: roundCurrency(sumBy(schedule, (row) => row.interest)),
+    prepayment: roundCurrency(sumBy(schedule, (row) => row.prepayment)),
+    totalPaid: roundCurrency(sumBy(schedule, (row) => row.payment)),
+  };
+}
+
+function buildMortgageAnnualSummary(schedule, periodsPerYear) {
+  return schedule.reduce((years, row) => {
+    const year = Math.floor((row.number - 1) / periodsPerYear) + 1;
+    let current = years.find((item) => item.year === year);
+    if (!current) {
+      current = {
+        year,
+        paymentCount: 0,
+        principal: 0,
+        interest: 0,
+        prepayment: 0,
+        endingBalance: 0,
+      };
+      years.push(current);
+    }
+
+    current.paymentCount += 1;
+    current.principal = roundCurrency(current.principal + row.principal);
+    current.interest = roundCurrency(current.interest + row.interest);
+    current.prepayment = roundCurrency(current.prepayment + row.prepayment);
+    current.endingBalance = row.balance;
+    return years;
+  }, []);
+}
+
+function buildMortgageCarryingCosts(settings, regularPayment) {
+  const breakdown = [
+    {
+      label: "Versement hypothécaire",
+      monthly: roundCurrency(regularPayment),
+      annual: annualizeMonthly(regularPayment),
+    },
+    {
+      label: "Taxes municipales",
+      monthly: monthlyFromAnnual(settings.propertyTaxAnnual),
+      annual: roundCurrency(settings.propertyTaxAnnual),
+    },
+    {
+      label: "Taxes scolaires",
+      monthly: monthlyFromAnnual(settings.schoolTaxAnnual),
+      annual: roundCurrency(settings.schoolTaxAnnual),
+    },
+    {
+      label: "Assurance habitation",
+      monthly: roundCurrency(settings.homeInsuranceMonthly),
+      annual: annualizeMonthly(settings.homeInsuranceMonthly),
+    },
+    {
+      label: "Chauffage",
+      monthly: roundCurrency(settings.heatingMonthly),
+      annual: annualizeMonthly(settings.heatingMonthly),
+    },
+    {
+      label: "Électricité",
+      monthly: roundCurrency(settings.electricityMonthly),
+      annual: annualizeMonthly(settings.electricityMonthly),
+    },
+    {
+      label: "Eau / déchets",
+      monthly: roundCurrency(settings.waterWasteMonthly),
+      annual: annualizeMonthly(settings.waterWasteMonthly),
+    },
+    {
+      label: "Frais de condo",
+      monthly: roundCurrency(settings.condoFeesMonthly),
+      annual: annualizeMonthly(settings.condoFeesMonthly),
+    },
+    {
+      label: "Internet / télé",
+      monthly: roundCurrency(settings.internetMonthly),
+      annual: annualizeMonthly(settings.internetMonthly),
+    },
+    {
+      label: "Entretien / fonds de réserve",
+      monthly: monthlyFromAnnual(settings.maintenanceAnnual),
+      annual: roundCurrency(settings.maintenanceAnnual),
+    },
+    {
+      label: "Autres frais",
+      monthly: roundCurrency(settings.otherHousingMonthly),
+      annual: annualizeMonthly(settings.otherHousingMonthly),
+    },
+  ];
+
+  const monthlyExtras = roundCurrency(
+    sumBy(breakdown.slice(1), (item) => item.monthly)
+  );
+  const totalMonthlyHousingCost = roundCurrency(sumBy(breakdown, (item) => item.monthly));
+  const totalAnnualHousingCost = roundCurrency(sumBy(breakdown, (item) => item.annual));
+  return {
+    breakdown,
+    monthlyExtras,
+    totalMonthlyHousingCost,
+    totalAnnualHousingCost,
+  };
+}
+
+function calculateMortgageRegularPayment(principal, nominalRate, totalMonths, paymentFrequency) {
+  const frequency = getMortgageFrequencyDefinition(paymentFrequency);
+  if (principal <= 0 || totalMonths <= 0) {
+    return 0;
+  }
+
+  if (frequency.mode === "accelerated") {
+    const monthlyPayment = calculateMortgageRegularPayment(principal, nominalRate, totalMonths, "monthly");
+    return roundCurrency(monthlyPayment / frequency.divisor);
+  }
+
+  const exactPeriods = (totalMonths / 12) * frequency.periodsPerYear;
+  const ratePerPayment = getMortgagePeriodicRate(nominalRate, frequency.periodsPerYear);
+  if (!ratePerPayment) {
+    return roundCurrency(principal / exactPeriods);
+  }
+
+  const payment =
+    (principal * ratePerPayment) / (1 - Math.pow(1 + ratePerPayment, -exactPeriods));
+  return roundCurrency(payment);
+}
+
+function getMortgagePeriodicRate(nominalRate, periodsPerYear) {
+  if (!nominalRate || nominalRate <= 0) {
+    return 0;
+  }
+  return Math.pow(1 + nominalRate / 2, 2 / periodsPerYear) - 1;
+}
+
+function getMortgagePrepaymentForNumber(number, amount, frequency, startPayment, periodsPerYear) {
+  const effectiveStart = Math.max(1, Math.floor(parseAmount(startPayment) || 1));
+  if (amount <= 0 || number < effectiveStart) {
+    return 0;
+  }
+  if (frequency === "regular") {
+    return amount;
+  }
+  if (frequency === "yearly") {
+    return (number - effectiveStart) % periodsPerYear === 0 ? amount : 0;
+  }
+  return number === effectiveStart ? amount : 0;
+}
+
+function getMortgageFrequencyDefinition(frequencyKey) {
+  return MORTGAGE_PAYMENT_FREQUENCIES[frequencyKey] || MORTGAGE_PAYMENT_FREQUENCIES.monthly;
+}
+
+function getMortgagePaymentUnitLabel(frequencyKey) {
+  if (frequencyKey === "weekly" || frequencyKey === "accelerated_weekly") {
+    return "par semaine";
+  }
+  if (frequencyKey === "biweekly" || frequencyKey === "accelerated_biweekly") {
+    return "aux deux semaines";
+  }
+  if (frequencyKey === "semimonthly") {
+    return "deux fois par mois";
+  }
+  return "par mois";
+}
+
+function getMortgageFrequencyLabelForSentence(frequencyKey) {
+  if (frequencyKey === "weekly" || frequencyKey === "accelerated_weekly") {
+    return "par semaine";
+  }
+  if (frequencyKey === "biweekly" || frequencyKey === "accelerated_biweekly") {
+    return "aux deux semaines";
+  }
+  if (frequencyKey === "semimonthly") {
+    return "deux fois par mois";
+  }
+  return "par mois";
+}
+
+function sanitizeMortgageTool(input) {
+  if (!input || typeof input !== "object") {
+    return { ...DEFAULT_MORTGAGE_TOOL };
+  }
+
+  const paymentFrequency = textValue(input.paymentFrequency);
+  const prepaymentFrequency = textValue(input.prepaymentFrequency);
+  return {
+    principal: Math.max(0, parseAmount(input.principal ?? DEFAULT_MORTGAGE_TOOL.principal)),
+    interestRate: Math.max(0, parseAmount(input.interestRate ?? DEFAULT_MORTGAGE_TOOL.interestRate)),
+    amortizationYears: clampInteger(
+      input.amortizationYears ?? DEFAULT_MORTGAGE_TOOL.amortizationYears,
+      0,
+      30
+    ),
+    amortizationMonths: clampInteger(
+      input.amortizationMonths ?? DEFAULT_MORTGAGE_TOOL.amortizationMonths,
+      0,
+      11
+    ),
+    paymentFrequency: MORTGAGE_PAYMENT_FREQUENCIES[paymentFrequency] ? paymentFrequency : DEFAULT_MORTGAGE_TOOL.paymentFrequency,
+    termYears: clampInteger(input.termYears ?? DEFAULT_MORTGAGE_TOOL.termYears, 1, 10),
+    prepaymentAmount: Math.max(0, parseAmount(input.prepaymentAmount ?? DEFAULT_MORTGAGE_TOOL.prepaymentAmount)),
+    prepaymentFrequency: MORTGAGE_PREPAYMENT_FREQUENCY_LABELS[prepaymentFrequency]
+      ? prepaymentFrequency
+      : DEFAULT_MORTGAGE_TOOL.prepaymentFrequency,
+    prepaymentStartPayment: Math.max(
+      1,
+      clampInteger(input.prepaymentStartPayment ?? DEFAULT_MORTGAGE_TOOL.prepaymentStartPayment, 1, 10000)
+    ),
+    propertyTaxAnnual: Math.max(0, parseAmount(input.propertyTaxAnnual ?? DEFAULT_MORTGAGE_TOOL.propertyTaxAnnual)),
+    schoolTaxAnnual: Math.max(0, parseAmount(input.schoolTaxAnnual ?? DEFAULT_MORTGAGE_TOOL.schoolTaxAnnual)),
+    homeInsuranceMonthly: Math.max(
+      0,
+      parseAmount(input.homeInsuranceMonthly ?? DEFAULT_MORTGAGE_TOOL.homeInsuranceMonthly)
+    ),
+    heatingMonthly: Math.max(0, parseAmount(input.heatingMonthly ?? DEFAULT_MORTGAGE_TOOL.heatingMonthly)),
+    electricityMonthly: Math.max(
+      0,
+      parseAmount(input.electricityMonthly ?? DEFAULT_MORTGAGE_TOOL.electricityMonthly)
+    ),
+    waterWasteMonthly: Math.max(
+      0,
+      parseAmount(input.waterWasteMonthly ?? DEFAULT_MORTGAGE_TOOL.waterWasteMonthly)
+    ),
+    condoFeesMonthly: Math.max(0, parseAmount(input.condoFeesMonthly ?? DEFAULT_MORTGAGE_TOOL.condoFeesMonthly)),
+    internetMonthly: Math.max(0, parseAmount(input.internetMonthly ?? DEFAULT_MORTGAGE_TOOL.internetMonthly)),
+    maintenanceAnnual: Math.max(0, parseAmount(input.maintenanceAnnual ?? DEFAULT_MORTGAGE_TOOL.maintenanceAnnual)),
+    otherHousingMonthly: Math.max(
+      0,
+      parseAmount(input.otherHousingMonthly ?? DEFAULT_MORTGAGE_TOOL.otherHousingMonthly)
+    ),
+  };
+}
+
+function clampInteger(value, min, max) {
+  const numeric = Math.floor(parseAmount(value));
+  if (!Number.isFinite(numeric)) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, numeric));
+}
+
+function formatMortgageDurationFromPayments(paymentCount, periodsPerYear) {
+  if (!paymentCount) {
+    return "0 mois";
+  }
+  return formatMortgageDurationFromMonths(Math.round((paymentCount * 12) / periodsPerYear));
+}
+
+function formatMortgageDurationFromMonths(totalMonths) {
+  const months = Math.max(0, Math.round(totalMonths));
+  const years = Math.floor(months / 12);
+  const remainder = months % 12;
+  if (!years) {
+    return `${remainder} mois`;
+  }
+  if (!remainder) {
+    return `${years} an${years > 1 ? "s" : ""}`;
+  }
+  return `${years} an${years > 1 ? "s" : ""} et ${remainder} mois`;
+}
+
+function formatPercent(value, decimals = 2) {
+  return `${new Intl.NumberFormat("fr-CA", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value || 0)} %`;
+}
+
+function formatInteger(value) {
+  return new Intl.NumberFormat("fr-CA", {
+    maximumFractionDigits: 0,
+  }).format(value || 0);
+}
+
+function monthlyFromAnnual(value) {
+  return roundCurrency((parseAmount(value) || 0) / 12);
+}
+
+function annualizeMonthly(value) {
+  return roundCurrency((parseAmount(value) || 0) * 12);
 }
 
 function normalizeProjectionSelectionValue(value) {

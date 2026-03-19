@@ -18,14 +18,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260318-21">
+    <link rel="stylesheet" href="styles.css?v=20260319-2">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-18 / cloud-cache-refresh</p>
+          <p class="eyebrow">Build 2026-03-19 / mortgage-calculator</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -83,6 +83,7 @@
         <button class="mobile-tab active" type="button" data-mobile-nav="overview" aria-pressed="true">Aperçu</button>
         <button class="mobile-tab" type="button" data-mobile-nav="projection" aria-pressed="false">Projection</button>
         <button class="mobile-tab" type="button" data-mobile-nav="calendar" aria-pressed="false">Calendrier</button>
+        <button class="mobile-tab" type="button" data-mobile-nav="mortgage" aria-pressed="false">Hypothèque</button>
         <button class="mobile-tab" type="button" data-mobile-nav="accounts" aria-pressed="false">Comptes</button>
         <button class="mobile-tab" type="button" data-mobile-nav="planning" aria-pressed="false">Buts</button>
         <button class="mobile-tab" type="button" data-mobile-nav="entries" aria-pressed="false">Entrées</button>
@@ -337,6 +338,262 @@
           </div>
           <div id="calendarGrid" class="calendar-grid"></div>
           <div id="calendarWeekTotals" class="calendar-week-totals"></div>
+        </section>
+
+        <section class="panel" data-mobile-section="mortgage">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Outil</p>
+              <h2>Calculatrice hypothécaire</h2>
+            </div>
+            <p>Calcule un prêt hypothécaire canadien, compare les fréquences de paiement et mesure l'effet des remboursements anticipés.</p>
+          </div>
+          <div class="planner-layout mortgage-layout">
+            <form id="mortgageForm" class="planner-form mortgage-form" novalidate>
+              <label>
+                Montant du prêt hypothécaire
+                <input name="principal" type="number" min="0" step="0.01" placeholder="100000">
+              </label>
+              <label>
+                Taux d'intérêt annuel
+                <input name="interestRate" type="number" min="0" step="0.01" placeholder="5.00">
+              </label>
+              <label>
+                Amortissement - années
+                <input name="amortizationYears" type="number" min="1" max="30" step="1" placeholder="25">
+              </label>
+              <label>
+                Amortissement - mois
+                <select name="amortizationMonths">
+                  <option value="0">0 mois</option>
+                  <option value="1">1 mois</option>
+                  <option value="2">2 mois</option>
+                  <option value="3">3 mois</option>
+                  <option value="4">4 mois</option>
+                  <option value="5">5 mois</option>
+                  <option value="6">6 mois</option>
+                  <option value="7">7 mois</option>
+                  <option value="8">8 mois</option>
+                  <option value="9">9 mois</option>
+                  <option value="10">10 mois</option>
+                  <option value="11">11 mois</option>
+                </select>
+              </label>
+              <label>
+                Fréquence des versements
+                <select name="paymentFrequency">
+                  <option value="accelerated_weekly">Accélérée à la semaine</option>
+                  <option value="weekly">Hebdomadaire (à la semaine)</option>
+                  <option value="accelerated_biweekly">Accélérée aux deux semaines</option>
+                  <option value="biweekly">Aux deux semaines</option>
+                  <option value="semimonthly">Bi-mensuelle (24x par année)</option>
+                  <option value="monthly">Mensuelle (12x par année)</option>
+                </select>
+              </label>
+              <label>
+                Terme
+                <select name="termYears">
+                  <option value="1">1 année</option>
+                  <option value="2">2 années</option>
+                  <option value="3">3 années</option>
+                  <option value="4">4 années</option>
+                  <option value="5">5 années</option>
+                  <option value="6">6 années</option>
+                  <option value="7">7 années</option>
+                  <option value="8">8 années</option>
+                  <option value="9">9 années</option>
+                  <option value="10">10 années</option>
+                </select>
+              </label>
+              <label>
+                Montant des remboursements anticipés
+                <input name="prepaymentAmount" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Fréquence du remboursement anticipé
+                <select name="prepaymentFrequency">
+                  <option value="once">Une seule fois</option>
+                  <option value="yearly">À chaque année</option>
+                  <option value="regular">Même que vos versements</option>
+                </select>
+              </label>
+              <label>
+                À partir du versement
+                <input name="prepaymentStartPayment" type="number" min="1" step="1" placeholder="1">
+              </label>
+              <div class="mortgage-form-span">
+                <strong>Coût de possession tout inclus</strong>
+                <p>Ajoute les frais annuels et mensuels du logement pour estimer combien la maison coûterait réellement chaque mois.</p>
+              </div>
+              <label>
+                Taxes municipales annuelles
+                <input name="propertyTaxAnnual" type="number" min="0" step="0.01" placeholder="4200">
+              </label>
+              <label>
+                Taxes scolaires annuelles
+                <input name="schoolTaxAnnual" type="number" min="0" step="0.01" placeholder="350">
+              </label>
+              <label>
+                Assurance habitation mensuelle
+                <input name="homeInsuranceMonthly" type="number" min="0" step="0.01" placeholder="110">
+              </label>
+              <label>
+                Chauffage mensuel
+                <input name="heatingMonthly" type="number" min="0" step="0.01" placeholder="125">
+              </label>
+              <label>
+                Électricité mensuelle
+                <input name="electricityMonthly" type="number" min="0" step="0.01" placeholder="95">
+              </label>
+              <label>
+                Eau / déchets mensuel
+                <input name="waterWasteMonthly" type="number" min="0" step="0.01" placeholder="60">
+              </label>
+              <label>
+                Frais de condo mensuels
+                <input name="condoFeesMonthly" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Internet / télé mensuel
+                <input name="internetMonthly" type="number" min="0" step="0.01" placeholder="120">
+              </label>
+              <label>
+                Entretien annuel / fonds de réserve
+                <input name="maintenanceAnnual" type="number" min="0" step="0.01" placeholder="2400">
+              </label>
+              <label>
+                Autres frais mensuels
+                <input name="otherHousingMonthly" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <div class="form-actions">
+                <button class="button primary" type="submit">Calculer</button>
+                <button id="mortgageResetBtn" class="button ghost" type="button">Réinitialiser</button>
+                <button id="mortgageExampleBtn" class="button secondary" type="button">Charger l'exemple ACFC</button>
+              </div>
+              <p id="mortgageHelperText" class="helper-text form-helper mortgage-helper">
+                Les remboursements anticipés peuvent être ponctuels, annuels ou ajoutés à chaque versement régulier.
+              </p>
+            </form>
+
+            <article class="planner-card mortgage-card">
+              <span class="status-chip neutral">Calcul canadien</span>
+              <strong id="mortgageRegularPayment">-</strong>
+              <p id="mortgageLead">Entre le montant, le taux et l'amortissement pour estimer le versement régulier.</p>
+              <div id="mortgageQuickStats" class="planner-stats"></div>
+              <p class="helper-text mortgage-footnote">
+                Hypothèse: taux fixe constant, capitalisation semestrielle et versements réguliers selon la fréquence choisie.
+              </p>
+            </article>
+          </div>
+
+          <div id="mortgageSummaryCards" class="calendar-summary mortgage-summary"></div>
+
+          <div class="mortgage-report-grid">
+            <article class="mortgage-block">
+              <div class="mortgage-block-head">
+                <div>
+                  <p class="section-kicker">Tout inclus</p>
+                  <h3>Coût réel de la maison</h3>
+                </div>
+                <p>Un découpage mensuel et annuel des frais de possession autour du paiement hypothécaire.</p>
+              </div>
+              <div class="mortgage-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Catégorie</th>
+                      <th>Mensuel</th>
+                      <th>Annuel</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mortgageCarryingCostTable"></tbody>
+                </table>
+              </div>
+            </article>
+
+            <article class="mortgage-block">
+              <div class="mortgage-block-head">
+                <div>
+                  <p class="section-kicker">Aperçu</p>
+                  <h3>Comparatif terme / amortissement</h3>
+                </div>
+                <p>Les catégories suivent le même découpage que l'outil de l'ACFC.</p>
+              </div>
+              <div class="mortgage-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Catégorie</th>
+                      <th>Terme</th>
+                      <th>Amortissement</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mortgageOverviewTable"></tbody>
+                </table>
+              </div>
+            </article>
+
+            <article class="mortgage-block">
+              <div class="mortgage-block-head">
+                <div>
+                  <p class="section-kicker">Résumé</p>
+                  <h3>Lecture rapide du prêt</h3>
+                </div>
+                <p>Un résumé en français pour voir l'impact du terme et des remboursements anticipés.</p>
+              </div>
+              <ul id="mortgageNarrative" class="mortgage-narrative"></ul>
+            </article>
+
+            <article class="mortgage-block">
+              <div class="mortgage-block-head">
+                <div>
+                  <p class="section-kicker">Amortissement</p>
+                  <h3>Résumé annuel</h3>
+                </div>
+                <p>Capital, intérêts, remboursements anticipés et solde de fin d'année.</p>
+              </div>
+              <div class="mortgage-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Année</th>
+                      <th>Versements</th>
+                      <th>Capital</th>
+                      <th>Intérêts</th>
+                      <th>Anticipé</th>
+                      <th>Solde</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mortgageAnnualTable"></tbody>
+                </table>
+              </div>
+            </article>
+
+            <article class="mortgage-block">
+              <div class="mortgage-block-head">
+                <div>
+                  <p class="section-kicker">Détail</p>
+                  <h3>12 prochains versements</h3>
+                </div>
+                <p>Pratique pour vérifier un montant dans vos relevés ou comprendre la progression du capital.</p>
+              </div>
+              <div class="mortgage-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>No</th>
+                      <th>Versement</th>
+                      <th>Capital</th>
+                      <th>Intérêts</th>
+                      <th>Anticipé</th>
+                      <th>Solde</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mortgagePaymentsTable"></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
         </section>
 
         <section class="panel" data-mobile-section="accounts">
@@ -903,7 +1160,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260318-2"></script>
-    <script src="app.js?v=20260318-21"></script>
+    <script src="app.js?v=20260319-2"></script>
   </body>
 </html>
 

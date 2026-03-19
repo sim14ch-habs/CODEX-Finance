@@ -422,11 +422,40 @@ textarea {
   padding: 0 28px 28px;
 }
 
+.mortgage-layout {
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.85fr);
+}
+
 .planner-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   padding-top: 6px;
+}
+
+.mortgage-form-span {
+  grid-column: 1 / -1;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  background: rgba(21, 94, 99, 0.08);
+  border: 1px solid rgba(21, 94, 99, 0.12);
+}
+
+.mortgage-form-span strong {
+  display: block;
+  font-size: 1rem;
+  font-family: var(--font-display);
+}
+
+.mortgage-form-span p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.mortgage-helper,
+.mortgage-footnote {
+  grid-column: 1 / -1;
 }
 
 .planner-card {
@@ -512,6 +541,10 @@ textarea {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.mortgage-summary {
+  padding-top: 4px;
+}
+
 .calendar-week-totals {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   padding-top: 4px;
@@ -549,6 +582,57 @@ textarea {
   margin: 8px 0 0;
   color: var(--muted);
   line-height: 1.45;
+}
+
+.mortgage-report-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding: 0 28px 28px;
+}
+
+.mortgage-block {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(19, 35, 29, 0.08);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.mortgage-block-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+
+.mortgage-block-head h3 {
+  margin: 4px 0 0;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+}
+
+.mortgage-block-head p {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.mortgage-table-scroll {
+  overflow-x: auto;
+}
+
+.mortgage-table-scroll table {
+  width: 100%;
+}
+
+.mortgage-narrative {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+  color: var(--muted);
 }
 
 .calendar-weekdays,
@@ -1192,6 +1276,7 @@ svg {
   .cloud-layout,
   .projection-layout,
   .planner-layout,
+  .mortgage-report-grid,
   .cards-grid,
   .stats-grid,
   .alerts-grid,
@@ -1242,6 +1327,7 @@ svg {
   .stack-form,
   .planner-form,
   .projection-layout,
+  .mortgage-report-grid,
   .contributors,
   .alerts-grid,
   .calendar-grid,
@@ -1287,6 +1373,7 @@ svg {
   }
 
   .cloud-box-head,
+  .mortgage-block-head,
   .activity-entry-head {
     flex-direction: column;
     align-items: start;
