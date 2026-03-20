@@ -26,7 +26,7 @@
     },
     {
       "id": "account_demo_emergency",
-      "owner": "Épargne sécurité",
+      "owner": "Epargne securite",
       "holder": "partnerOne",
       "kind": "savings",
       "status": "active",
@@ -65,7 +65,7 @@
       "id": "bill_demo_internet",
       "owner": "Compte courant 1",
       "label": "Internet",
-      "category": "Télécom",
+      "category": "Telecom",
       "amount": 85,
       "frequency": "monthly",
       "nextDate": "2026-03-30"
@@ -84,8 +84,8 @@
     {
       "id": "saving_demo_security",
       "scope": "personal",
-      "owner": "Épargne sécurité",
-      "label": "Épargne sécurité",
+      "owner": "Epargne securite",
+      "label": "Epargne securite",
       "targetAmount": 2500,
       "currentAmount": 600,
       "contributionAmount": 150,

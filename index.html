@@ -18,14 +18,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260319-3">
+    <link rel="stylesheet" href="styles.css?v=20260320-1">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-19 / mortgage-scenarios</p>
+          <p class="eyebrow">Build 2026-03-20 / generic-public-defaults</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -34,7 +34,7 @@
           </p>
           <div class="hero-actions">
             <button id="loadDemoBtn" class="button secondary" type="button">
-              Charger mes données
+              Charger un exemple
             </button>
             <button id="resetBtn" class="button ghost" type="button">
               Réinitialiser les données
@@ -143,7 +143,7 @@
                 <form id="cloudCreateForm" class="cloud-inline-form">
                   <label>
                     Nom du foyer
-                    <input id="cloudHouseholdNameInput" name="householdName" type="text" placeholder="Budget Simon">
+                    <input id="cloudHouseholdNameInput" name="householdName" type="text" placeholder="Budget du foyer">
                   </label>
                   <button class="button primary" type="submit">Créer le foyer cloud</button>
                 </form>
@@ -227,11 +227,11 @@
             </label>
             <label>
               Personne 1
-              <input name="partnerOne" type="text" placeholder="Moi">
+              <input name="partnerOne" type="text" placeholder="Personne 1">
             </label>
             <label>
               Personne 2
-              <input name="partnerTwo" type="text" placeholder="Geneviève">
+              <input name="partnerTwo" type="text" placeholder="Personne 2">
             </label>
             <label>
               Horizon de projection
@@ -271,7 +271,7 @@
               <h2>Projection filtrée</h2>
             </div>
             <p>
-              Choisis un compte précis, ou tous les comptes de Simon ou de Geneviève, pour suivre leur évolution.
+              Choisis un compte précis, ou tous les comptes d'une personne, pour suivre leur évolution.
             </p>
           </div>
           <div class="projection-layout">
@@ -633,7 +633,7 @@
             <input name="id" type="hidden">
             <label>
               Nom du compte
-                <input name="owner" type="text" placeholder="Épargne voyage Simon">
+                <input name="owner" type="text" placeholder="Compte épargne voyage">
             </label>
             <label>
               Titulaire
@@ -860,10 +860,6 @@
                 <button class="button ghost form-reset" data-form="billForm" type="button">Vider</button>
               </div>
             </form>
-            <div class="form-actions">
-              <button id="mergeSimonBillsBtn" class="button ghost" type="button">Ajouter mes dépenses Simon</button>
-            </div>
-            <p class="helper-text form-helper">Ajoute seulement les factures Simon manquantes, sans doublons.</p>
             <div id="billsTableTools" class="table-tools" hidden>
               <p id="billsTableSummary" class="helper-text table-summary"></p>
               <button id="billsTableToggle" class="button ghost" type="button" hidden>Voir toutes les factures</button>
@@ -1013,7 +1009,7 @@
               </div>
             </form>
             <p class="helper-text form-helper">
-              Exemple: si Simon paie 150 $ avec 50 % à rembourser, Geneviève lui devra 75 $.
+              Exemple: si la personne 1 paie 150 $ avec 50 % à rembourser, la personne 2 lui devra 75 $.
             </p>
             <div id="sharedExpensesTableTools" class="table-tools" hidden>
               <p id="sharedExpensesTableSummary" class="helper-text table-summary"></p>
@@ -1183,7 +1179,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260318-2"></script>
-    <script src="app.js?v=20260319-3"></script>
+    <script src="app.js?v=20260320-1"></script>
   </body>
 </html>
 

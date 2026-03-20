@@ -87,164 +87,137 @@ const DEFAULT_MORTGAGE_TOOL = {
 
 const DEFAULT_STATE = {
   household: {
-    householdName: "Budget Simon",
-    partnerOne: "Simon",
-    partnerTwo: "Geneviève",
+    householdName: "Budget du foyer",
+    partnerOne: "Personne 1",
+    partnerTwo: "Personne 2",
     currency: "CAD",
-    currentBalance: 1298,
+    currentBalance: 0,
     projectionMonths: 6,
   },
   accounts: [
     {
       id: ACCOUNT_IDS.partnerOne,
-      owner: "Simon",
+      owner: "Compte courant 1",
       holder: ACCOUNT_HOLDERS.partnerOne,
-      kind: "checking",
-      status: "active",
-      balance: 998,
-    },
-    {
-      id: ACCOUNT_IDS.partnerTwo,
-      owner: "Geneviève",
-      holder: ACCOUNT_HOLDERS.partnerTwo,
       kind: "checking",
       status: "active",
       balance: 0,
     },
     {
-      id: "account_simon_emergency_fund",
-      owner: "Fonds d'urgence",
+      id: ACCOUNT_IDS.partnerTwo,
+      owner: "Compte courant 2",
+      holder: ACCOUNT_HOLDERS.partnerTwo,
+      kind: "checking",
+      status: "active",
+      balance: 0,
+    },
+  ],
+  paychecks: [],
+  bills: [],
+  savingsGoals: [],
+  sharedExpenses: [],
+  transactions: [],
+  transfers: [],
+  activityLog: [],
+  mortgageTool: { ...DEFAULT_MORTGAGE_TOOL },
+  mortgageScenarios: [],
+};
+
+const DEMO_STATE = {
+  household: {
+    householdName: "Budget d'exemple",
+    partnerOne: "Personne 1",
+    partnerTwo: "Personne 2",
+    currency: "CAD",
+    currentBalance: 4650,
+    projectionMonths: 6,
+  },
+  accounts: [
+    {
+      id: ACCOUNT_IDS.partnerOne,
+      owner: "Compte courant 1",
+      holder: ACCOUNT_HOLDERS.partnerOne,
+      kind: "checking",
+      status: "active",
+      balance: 2850,
+    },
+    {
+      id: ACCOUNT_IDS.partnerTwo,
+      owner: "Compte courant 2",
+      holder: ACCOUNT_HOLDERS.partnerTwo,
+      kind: "checking",
+      status: "active",
+      balance: 1200,
+    },
+    {
+      id: "account_demo_emergency",
+      owner: "Épargne sécurité",
       holder: ACCOUNT_HOLDERS.partnerOne,
       kind: "savings",
       status: "active",
-      balance: 300,
+      balance: 600,
     },
   ],
   paychecks: [
     {
-      id: "pay_simon_abb",
-      owner: "Simon",
-      label: "Paie ABB",
-      amount: 1988,
+      id: "pay_demo_primary",
+      owner: "Compte courant 1",
+      label: "Paie principale",
+      amount: 1750,
       frequency: "biweekly",
-      nextDate: "2026-03-25",
+      nextDate: "2026-03-27",
+    },
+    {
+      id: "pay_demo_secondary",
+      owner: "Compte courant 2",
+      label: "Paie secondaire",
+      amount: 1200,
+      frequency: "monthly",
+      nextDate: "2026-03-31",
     },
   ],
   bills: [
     {
-      id: "bill_simon_mnp",
-      owner: "Simon",
-      label: "MNP",
-      category: "Finances",
-      amount: 400,
-      frequency: "biweekly",
-      nextDate: "2026-03-26",
-    },
-    {
-      id: "bill_simon_videotron",
-      owner: "Simon",
-      label: "Videotron",
-      category: "Télécom",
-      amount: 180,
-      frequency: "monthly",
-      nextDate: "2026-03-26",
-    },
-    {
-      id: "bill_simon_loyer",
-      owner: "Simon",
+      id: "bill_demo_rent",
+      owner: "Compte courant 1",
       label: "Loyer",
       category: "Logement",
-      amount: 863.5,
+      amount: 1450,
       frequency: "monthly",
       nextDate: "2026-03-28",
     },
     {
-      id: "bill_simon_assurance_vie",
-      owner: "Simon",
-      label: "Assurance vie",
-      category: "Assurances",
-      amount: 82.33,
+      id: "bill_demo_internet",
+      owner: "Compte courant 1",
+      label: "Internet",
+      category: "Télécom",
+      amount: 85,
       frequency: "monthly",
-      nextDate: "2026-04-01",
+      nextDate: "2026-03-30",
     },
     {
-      id: "bill_simon_assurance_auto",
-      owner: "Simon",
+      id: "bill_demo_insurance",
+      owner: "Compte courant 2",
       label: "Assurance auto",
       category: "Auto",
-      amount: 99.02,
-      frequency: "monthly",
-      nextDate: "2026-04-01",
-    },
-    {
-      id: "bill_simon_caa",
-      owner: "Simon",
-      label: "CAA",
-      category: "Auto",
-      amount: 8.93,
-      frequency: "monthly",
-      nextDate: "2026-04-01",
-    },
-    {
-      id: "bill_simon_cellulaire",
-      owner: "Simon",
-      label: "Cellulaire",
-      category: "Télécom",
-      amount: 49.66,
+      amount: 110,
       frequency: "monthly",
       nextDate: "2026-04-02",
-    },
-    {
-      id: "bill_simon_saaq",
-      owner: "Simon",
-      label: "SAAQ permis de conduire",
-      category: "Auto",
-      amount: 26,
-      frequency: "monthly",
-      nextDate: "2026-04-02",
-    },
-    {
-      id: "bill_simon_poker",
-      owner: "Simon",
-      label: "Poker",
-      category: "Loisirs",
-      amount: 20,
-      frequency: "weekly",
-      nextDate: "2026-03-23",
-      endDate: "2026-04-20",
-    },
-    {
-      id: "bill_simon_quilles",
-      owner: "Simon",
-      label: "Quilles",
-      category: "Loisirs",
-      amount: 25,
-      frequency: "weekly",
-      nextDate: "2026-03-20",
-    },
-    {
-      id: "bill_simon_lastpass",
-      owner: "Simon",
-      label: "LastPass",
-      category: "Abonnements",
-      amount: 49,
-      frequency: "yearly",
-      nextDate: "2026-10-08",
     },
   ],
   savingsGoals: [
     {
-      id: "saving_simon_urgence",
+      id: "saving_demo_security",
       scope: "personal",
-      owner: "Fonds d'urgence",
-      label: "Fonds d'urgence",
-      targetAmount: 1500,
-      currentAmount: 300,
-      contributionAmount: 300,
+      owner: "Épargne sécurité",
+      label: "Épargne sécurité",
+      targetAmount: 2500,
+      currentAmount: 600,
+      contributionAmount: 150,
       frequency: "monthly",
-      nextDate: "2026-04-09",
-      targetDate: "2026-09-01",
-      sourceOwner: "Simon",
+      nextDate: "2026-04-05",
+      targetDate: "2026-12-01",
+      sourceOwner: "Compte courant 1",
     },
   ],
   sharedExpenses: [],
@@ -413,7 +386,6 @@ function bindEvents() {
   $("billForm").addEventListener("submit", (event) =>
     upsertCollection(event, "bills", readBillForm)
   );
-  $("mergeSimonBillsBtn").addEventListener("click", mergeStarterBills);
   $("savingsForm").addEventListener("submit", (event) =>
     upsertCollection(event, "savingsGoals", readSavingsForm)
   );
@@ -529,22 +501,27 @@ function saveHousehold(event) {
   const renameRules = [
     {
       id: ACCOUNT_IDS.partnerOne,
-      nextOwner: textValue(formData.get("partnerOne")) || "Moi",
+      nextOwner: textValue(formData.get("partnerOne")) || "Personne 1",
       holder: ACCOUNT_HOLDERS.partnerOne,
-      previousOwner: state.accounts.find((account) => account.id === ACCOUNT_IDS.partnerOne)?.owner || state.household.partnerOne || "Moi",
+      previousOwner:
+        state.accounts.find((account) => account.id === ACCOUNT_IDS.partnerOne)?.owner ||
+        state.household.partnerOne ||
+        "Personne 1",
     },
     {
       id: ACCOUNT_IDS.partnerTwo,
-      nextOwner: textValue(formData.get("partnerTwo")) || "Geneviève",
+      nextOwner: textValue(formData.get("partnerTwo")) || "Personne 2",
       holder: ACCOUNT_HOLDERS.partnerTwo,
       previousOwner:
-        state.accounts.find((account) => account.id === ACCOUNT_IDS.partnerTwo)?.owner || state.household.partnerTwo || "Geneviève",
+        state.accounts.find((account) => account.id === ACCOUNT_IDS.partnerTwo)?.owner ||
+        state.household.partnerTwo ||
+        "Personne 2",
     },
   ];
   state.household = {
     householdName: textValue(formData.get("householdName")) || "Budget du foyer",
-    partnerOne: textValue(formData.get("partnerOne")) || "Moi",
-    partnerTwo: textValue(formData.get("partnerTwo")) || "Geneviève",
+    partnerOne: textValue(formData.get("partnerOne")) || "Personne 1",
+    partnerTwo: textValue(formData.get("partnerTwo")) || "Personne 2",
     currency: "CAD",
     currentBalance: getTotalCurrentBalance(),
     projectionMonths: parseInt(formData.get("projectionMonths"), 10) || 6,
@@ -761,30 +738,6 @@ function readBillForm(formData) {
     nextDate,
     endDate,
   };
-}
-
-function mergeStarterBills() {
-  const owner = getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || state.household.partnerOne || "Simon";
-  const starterBills = cloneDefaults().bills.map((item) => ({ ...item, owner }));
-  const existingKeys = new Set(state.bills.map((item) => buildOwnedLabelKey(item.owner, item.label)));
-  const missingBills = starterBills.filter(
-    (item) => !existingKeys.has(buildOwnedLabelKey(item.owner, item.label))
-  );
-
-  if (!missingBills.length) {
-    window.alert("Les dépenses Simon de départ sont déjà présentes dans ce budget.");
-    return;
-  }
-
-  pushUndoSnapshot("Avant fusion des dépenses Simon");
-  state.bills = [...state.bills, ...missingBills];
-  recordActivity(
-    "Dépenses Simon ajoutées",
-    `${missingBills.length} facture${missingBills.length > 1 ? "s" : ""} ajoutée${missingBills.length > 1 ? "s" : ""} au compte ${owner}.`
-  );
-  persistState();
-  renderAll();
-  window.alert(`${missingBills.length} dépenses ont été ajoutées au compte ${owner}.`);
 }
 
 function readSavingsForm(formData) {
@@ -1775,8 +1728,8 @@ function renderAccountHolderOptions() {
   renderSelectOptions(
     select,
     [
-      { value: ACCOUNT_HOLDERS.partnerOne, label: state.household.partnerOne || "Moi" },
-      { value: ACCOUNT_HOLDERS.partnerTwo, label: state.household.partnerTwo || "Geneviève" },
+      { value: ACCOUNT_HOLDERS.partnerOne, label: state.household.partnerOne || "Personne 1" },
+      { value: ACCOUNT_HOLDERS.partnerTwo, label: state.household.partnerTwo || "Personne 2" },
       { value: ACCOUNT_HOLDERS.shared, label: "Commun" },
     ],
     select.value
@@ -2248,8 +2201,8 @@ function collectAlerts() {
       label: "Partage",
       title:
         debtSummary.net > 0
-          ? `${state.household.partnerOne || "Moi"} doit ${formatCurrency(debtSummary.net)}`
-          : `${state.household.partnerTwo || "Geneviève"} doit ${formatCurrency(Math.abs(debtSummary.net))}`,
+          ? `${state.household.partnerOne || "Personne 1"} doit ${formatCurrency(debtSummary.net)}`
+          : `${state.household.partnerTwo || "Personne 2"} doit ${formatCurrency(Math.abs(debtSummary.net))}`,
       message: "Les dépenses partagées commencent à peser. Un virement de règlement pourrait clarifier les soldes.",
     });
   }
@@ -2312,9 +2265,9 @@ function renderStats() {
       value: formatCurrency(Math.abs(debtSummary.net)),
       note:
         debtSummary.net > 0
-          ? `${state.household.partnerOne || "Moi"} doit ${state.household.partnerTwo || "Geneviève"}.`
+          ? `${state.household.partnerOne || "Personne 1"} doit ${state.household.partnerTwo || "Personne 2"}.`
           : debtSummary.net < 0
-            ? `${state.household.partnerTwo || "Geneviève"} doit ${state.household.partnerOne || "Moi"}.`
+            ? `${state.household.partnerTwo || "Personne 2"} doit ${state.household.partnerOne || "Personne 1"}.`
             : "Aucune dette interne en cours.",
       tone: debtSummary.net === 0 ? "positive" : "",
     },
@@ -4182,8 +4135,8 @@ function renderSharedDebtCards() {
   }
 
   const summary = computeSharedDebtSummary();
-  const partnerOne = state.household.partnerOne || "Moi";
-  const partnerTwo = state.household.partnerTwo || "Geneviève";
+  const partnerOne = state.household.partnerOne || "Personne 1";
+  const partnerTwo = state.household.partnerTwo || "Personne 2";
   const card = {
     label: "Solde net entre vous",
     value: formatCurrency(Math.abs(summary.net)),
@@ -4962,8 +4915,8 @@ function sanitizeAccount(account, household) {
     holder === ACCOUNT_HOLDERS.shared
       ? getSharedOwnerValueFromHousehold(household)
       : holder === ACCOUNT_HOLDERS.partnerTwo
-        ? household.partnerTwo || "Geneviève"
-        : household.partnerOne || "Moi";
+        ? household.partnerTwo || "Personne 2"
+        : household.partnerOne || "Personne 1";
 
   return {
     id: textValue(account.id) || createId(),
@@ -5014,7 +4967,7 @@ function sanitizeSavingsGoal(item, household, accounts) {
         ? getDefaultOwnerForHolder(ACCOUNT_HOLDERS.shared, accounts, { includeClosed: true })
         : getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne, accounts, { includeClosed: true })) ||
       household.partnerOne ||
-      "Moi";
+      "Personne 1";
   const scope = requestedShared || isSharedOwner(owner, accounts) ? "shared" : "personal";
   const sourceOwner = sanitizeSavingsGoalSourceOwner(item, owner, household, accounts);
   const currentAmount = ownerAccount ? parseAmount(ownerAccount.balance) : parseAmount(item.currentAmount);
@@ -5114,7 +5067,7 @@ function createAccountsForHousehold(household, legacyCurrentBalance = 0) {
   return [
     {
       id: ACCOUNT_IDS.partnerOne,
-      owner: household.partnerOne || "Moi",
+      owner: household.partnerOne || "Personne 1",
       holder: ACCOUNT_HOLDERS.partnerOne,
       kind: "checking",
       status: "active",
@@ -5122,7 +5075,7 @@ function createAccountsForHousehold(household, legacyCurrentBalance = 0) {
     },
     {
       id: ACCOUNT_IDS.partnerTwo,
-      owner: household.partnerTwo || "Geneviève",
+      owner: household.partnerTwo || "Personne 2",
       holder: ACCOUNT_HOLDERS.partnerTwo,
       kind: "checking",
       status: "active",
@@ -5189,7 +5142,7 @@ function sanitizeOwnerLabel(owner, household, accounts, fallbackHolder = ACCOUNT
     getDefaultOwnerForHolder(fallbackHolder, accounts, { includeClosed: true }) ||
     getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne, accounts, { includeClosed: true }) ||
     household.partnerOne ||
-    "Moi";
+    "Personne 1";
   if (value === "Compte commun") {
     return sharedOwner || fallbackOwner;
   }
@@ -5220,9 +5173,9 @@ function formatAccountHolder(holder) {
     return "Commun";
   }
   if (holder === ACCOUNT_HOLDERS.partnerTwo) {
-    return state.household.partnerTwo || "Geneviève";
+    return state.household.partnerTwo || "Personne 2";
   }
-  return state.household.partnerOne || "Moi";
+  return state.household.partnerOne || "Personne 1";
 }
 
 function isSharedHolder(holder) {
@@ -5399,8 +5352,8 @@ function calculateSharedExpenseDebt(item) {
     return {
       fromHolder: ACCOUNT_HOLDERS.partnerTwo,
       toHolder: ACCOUNT_HOLDERS.partnerOne,
-    fromOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerTwo) || state.household.partnerTwo || "Geneviève",
-      toOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || state.household.partnerOne || "Moi",
+      fromOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerTwo) || state.household.partnerTwo || "Personne 2",
+      toOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || state.household.partnerOne || "Personne 1",
       amount: debtAmount,
     };
   }
@@ -5408,8 +5361,8 @@ function calculateSharedExpenseDebt(item) {
   return {
     fromHolder: ACCOUNT_HOLDERS.partnerOne,
     toHolder: ACCOUNT_HOLDERS.partnerTwo,
-    fromOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || state.household.partnerOne || "Moi",
-    toOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerTwo) || state.household.partnerTwo || "Geneviève",
+    fromOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) || state.household.partnerOne || "Personne 1",
+    toOwner: getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerTwo) || state.household.partnerTwo || "Personne 2",
     amount: debtAmount,
   };
 }
@@ -5532,7 +5485,7 @@ function readOwnerWithFallback(value, fallbackHolder) {
     getDefaultOwnerForHolder(fallbackHolder) ||
     getFirstActiveOwner() ||
     state.household.partnerOne ||
-    "Moi"
+    "Personne 1"
   );
 }
 
@@ -5609,7 +5562,7 @@ function createId() {
 }
 
 function createDemoState() {
-  return cloneDefaults();
+  return sanitizeState(cloneStateSnapshot(DEMO_STATE));
 }
 
 
