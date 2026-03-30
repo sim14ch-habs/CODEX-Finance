@@ -18,14 +18,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260320-1">
+    <link rel="stylesheet" href="styles.css?v=20260330-1">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-03-20 / generic-public-defaults</p>
+          <p class="eyebrow">Build 2026-03-30 / mobile-subtabs</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -89,9 +89,16 @@
         <button class="mobile-tab" type="button" data-mobile-nav="entries" aria-pressed="false">Entrées</button>
         <button class="mobile-tab" type="button" data-mobile-nav="cloud" aria-pressed="false">Cloud</button>
       </nav>
+      <nav id="mobileSubsectionNav" class="mobile-subsection-nav" hidden aria-label="Sous-navigation mobile"></nav>
 
       <main class="layout">
-        <section class="panel" data-mobile-section="cloud">
+        <section
+          class="panel"
+          data-mobile-section="cloud"
+          data-mobile-subsection="cloud-sync"
+          data-mobile-subsection-label="Sync"
+          data-mobile-subsection-order="1"
+        >
           <div class="section-head">
             <div>
               <p class="section-kicker">Cloud</p>
@@ -210,7 +217,13 @@
           </div>
         </section>
 
-        <section class="panel" data-mobile-section="overview">
+        <section
+          class="panel"
+          data-mobile-section="overview"
+          data-mobile-subsection="overview-base"
+          data-mobile-subsection-label="Base"
+          data-mobile-subsection-order="1"
+        >
           <div class="section-head">
             <div>
               <p class="section-kicker">Base du foyer</p>
@@ -251,9 +264,22 @@
           <p id="householdBalanceSummary" class="helper-text">Total actuel: 0,00 $</p>
         </section>
 
-        <section class="stats-grid" id="statsGrid" data-mobile-section="overview"></section>
+        <section
+          class="stats-grid"
+          id="statsGrid"
+          data-mobile-section="overview"
+          data-mobile-subsection="overview-summary"
+          data-mobile-subsection-label="Résumé"
+          data-mobile-subsection-order="2"
+        ></section>
 
-        <section class="panel" data-mobile-section="overview">
+        <section
+          class="panel"
+          data-mobile-section="overview"
+          data-mobile-subsection="overview-alerts"
+          data-mobile-subsection-label="Alertes"
+          data-mobile-subsection-order="3"
+        >
           <div class="section-head">
             <div>
               <p class="section-kicker">Alertes</p>
@@ -673,7 +699,13 @@
           </div>
         </section>
 
-        <section class="panel" data-mobile-section="planning">
+        <section
+          class="panel"
+          data-mobile-section="planning"
+          data-mobile-subsection="planning-goal"
+          data-mobile-subsection-label="But"
+          data-mobile-subsection-order="1"
+        >
           <div class="section-head">
             <div>
               <p class="section-kicker">But</p>
@@ -755,7 +787,13 @@
         </section>
 
         <section class="cards-grid">
-          <section class="panel" data-mobile-section="entries">
+          <section
+            class="panel"
+            data-mobile-section="entries"
+            data-mobile-subsection="entries-paychecks"
+            data-mobile-subsection-label="Paies"
+            data-mobile-subsection-order="2"
+          >
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Revenus</p>
@@ -816,7 +854,13 @@
             </div>
           </section>
 
-          <section class="panel" data-mobile-section="entries">
+          <section
+            class="panel"
+            data-mobile-section="entries"
+            data-mobile-subsection="entries-bills"
+            data-mobile-subsection-label="Factures"
+            data-mobile-subsection-order="3"
+          >
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Charges</p>
@@ -882,7 +926,13 @@
             </div>
           </section>
 
-          <section class="panel" data-mobile-section="planning">
+          <section
+            class="panel"
+            data-mobile-section="planning"
+            data-mobile-subsection="planning-savings"
+            data-mobile-subsection-label="Épargne"
+            data-mobile-subsection-order="2"
+          >
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Épargne</p>
@@ -969,7 +1019,13 @@
             </div>
           </section>
 
-          <section class="panel" data-mobile-section="entries">
+          <section
+            class="panel"
+            data-mobile-section="entries"
+            data-mobile-subsection="entries-shared"
+            data-mobile-subsection-label="Partagées"
+            data-mobile-subsection-order="1"
+          >
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Partagées</p>
@@ -1033,7 +1089,13 @@
             </div>
           </section>
 
-          <section class="panel" data-mobile-section="entries">
+          <section
+            class="panel"
+            data-mobile-section="entries"
+            data-mobile-subsection="entries-transfers"
+            data-mobile-subsection-label="Virements"
+            data-mobile-subsection-order="4"
+          >
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Comptes</p>
@@ -1089,7 +1151,13 @@
             </div>
           </section>
 
-          <section class="panel" data-mobile-section="entries">
+          <section
+            class="panel"
+            data-mobile-section="entries"
+            data-mobile-subsection="entries-transactions"
+            data-mobile-subsection-label="Ponctuel"
+            data-mobile-subsection-order="5"
+          >
             <div class="section-head tight">
               <div>
                 <p class="section-kicker">Ponctuel</p>
@@ -1154,7 +1222,13 @@
           </section>
         </section>
 
-        <section class="panel" data-mobile-section="cloud">
+        <section
+          class="panel"
+          data-mobile-section="cloud"
+          data-mobile-subsection="cloud-io"
+          data-mobile-subsection-label="Sauvegarde"
+          data-mobile-subsection-order="2"
+        >
           <div class="section-head">
             <div>
               <p class="section-kicker">Sauvegarde</p>
@@ -1179,7 +1253,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260318-2"></script>
-    <script src="app.js?v=20260320-1"></script>
+    <script src="app.js?v=20260330-1"></script>
   </body>
 </html>
 

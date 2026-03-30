@@ -295,6 +295,7 @@ const calendarUiState = {
 
 const mobileUiState = {
   section: "overview",
+  subsectionBySection: {},
 };
 
 const $ = (id) => document.getElementById(id);
@@ -444,6 +445,7 @@ function bindEvents() {
   document.addEventListener("click", handleQuickActionClicks);
   document.addEventListener("click", handleCompactTableToggle);
   document.addEventListener("click", handleMortgageScenarioActions);
+  document.addEventListener("click", handleMobileSubsectionClick);
 
   $("cloudAuthForm").addEventListener("submit", handleCloudAuthSubmit);
   $("cloudCreateForm").addEventListener("submit", handleCreateHouseholdSubmit);
@@ -1785,6 +1787,89 @@ function renderBalanceLabels() {
   $("householdBalanceSummary").textContent = `Total actuel: ${formatCurrency(getTotalCurrentBalance())} • ${activeCount} compte${activeCount > 1 ? "s" : ""} actif${activeCount > 1 ? "s" : ""}`;
 }
 
+function openMobileSection(section, subsection = "") {
+  if (!section) {
+    return;
+  }
+
+  mobileUiState.section = section;
+  if (subsection) {
+    mobileUiState.subsectionBySection[section] = subsection;
+  }
+  renderMobileSections();
+}
+
+function getMobileSectionBlocks(sectionKey) {
+  return Array.from(document.querySelectorAll(`[data-mobile-section="${sectionKey}"]`)).sort(
+    sortMobileSectionBlocks
+  );
+}
+
+function sortMobileSectionBlocks(left, right) {
+  const leftOrder = parseInt(left.dataset.mobileSubsectionOrder || "0", 10) || 0;
+  const rightOrder = parseInt(right.dataset.mobileSubsectionOrder || "0", 10) || 0;
+  if (leftOrder !== rightOrder) {
+    return leftOrder - rightOrder;
+  }
+  return 0;
+}
+
+function getMobileSubsectionMeta(block, index, sectionKey) {
+  return {
+    id: block.dataset.mobileSubsection || `${sectionKey}-${index + 1}`,
+    label: block.dataset.mobileSubsectionLabel || `Bloc ${index + 1}`,
+  };
+}
+
+function getCurrentMobileSubsectionId(sectionKey, blocks) {
+  if (!blocks.length) {
+    delete mobileUiState.subsectionBySection[sectionKey];
+    return "";
+  }
+
+  const availableIds = blocks.map((block, index) => getMobileSubsectionMeta(block, index, sectionKey).id);
+  const currentId = mobileUiState.subsectionBySection[sectionKey];
+  if (currentId && availableIds.includes(currentId)) {
+    return currentId;
+  }
+
+  const fallbackId = availableIds[0];
+  mobileUiState.subsectionBySection[sectionKey] = fallbackId;
+  return fallbackId;
+}
+
+function renderMobileSubsectionNav(sectionKey, blocks, isMobile, activeSubsectionId) {
+  const nav = $("mobileSubsectionNav");
+  if (!nav) {
+    return;
+  }
+
+  if (!isMobile || blocks.length <= 1) {
+    nav.hidden = true;
+    nav.innerHTML = "";
+    return;
+  }
+
+  nav.hidden = false;
+  nav.innerHTML = blocks
+    .map((block, index) => {
+      const meta = getMobileSubsectionMeta(block, index, sectionKey);
+      const active = meta.id === activeSubsectionId;
+      return `
+        <button
+          class="mobile-subtab ${active ? "active" : ""}"
+          type="button"
+          data-mobile-subnav="${escapeHtml(meta.id)}"
+          data-mobile-section="${escapeHtml(sectionKey)}"
+          aria-pressed="${active ? "true" : "false"}"
+        >
+          ${escapeHtml(meta.label)}
+        </button>
+      `;
+    })
+    .join("");
+}
+
 function renderMobileSections() {
   const nav = $("mobileSectionNav");
   if (!nav) {
@@ -1793,16 +1878,48 @@ function renderMobileSections() {
 
   const isMobile = window.innerWidth <= 760;
   nav.hidden = !isMobile;
+  const activeSection = mobileUiState.section || "overview";
+  const activeBlocks = getMobileSectionBlocks(activeSection);
+  const activeSubsectionId = getCurrentMobileSubsectionId(activeSection, activeBlocks);
+  const blockIds = new Map(
+    activeBlocks.map((block, index) => [block, getMobileSubsectionMeta(block, index, activeSection).id])
+  );
 
   document.querySelectorAll("[data-mobile-section]").forEach((section) => {
-    section.hidden = isMobile ? section.dataset.mobileSection !== mobileUiState.section : false;
+    if (!isMobile) {
+      section.hidden = false;
+      return;
+    }
+
+    if (section.dataset.mobileSection !== activeSection) {
+      section.hidden = true;
+      return;
+    }
+
+    if (activeBlocks.length <= 1) {
+      section.hidden = false;
+      return;
+    }
+
+    section.hidden = blockIds.get(section) !== activeSubsectionId;
   });
 
   document.querySelectorAll("[data-mobile-nav]").forEach((button) => {
-    const active = button.dataset.mobileNav === mobileUiState.section;
+    const active = button.dataset.mobileNav === activeSection;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", active ? "true" : "false");
   });
+
+  renderMobileSubsectionNav(activeSection, activeBlocks, isMobile, activeSubsectionId);
+}
+
+function handleMobileSubsectionClick(event) {
+  const button = event.target.closest("[data-mobile-subnav]");
+  if (!button) {
+    return;
+  }
+
+  openMobileSection(button.dataset.mobileSection || mobileUiState.section, button.dataset.mobileSubnav || "");
 }
 
 function syncTransferFormOwners(changedField = "") {
@@ -2625,7 +2742,7 @@ function handleQuickActionClicks(event) {
   if (action === "bill") {
     resetForm("billForm");
     $("billForm").elements.owner.value = owner;
-    focusForm("billForm", "label", "entries");
+    focusForm("billForm", "label", "entries", "entries-bills");
     return;
   }
 
@@ -2633,7 +2750,7 @@ function handleQuickActionClicks(event) {
     resetForm("transferForm");
     $("transferForm").elements.fromOwner.value = owner;
     syncTransferFormOwners("fromOwner");
-    focusForm("transferForm", "amount", "entries");
+    focusForm("transferForm", "amount", "entries", "entries-transfers");
     return;
   }
 
@@ -2653,26 +2770,25 @@ function handleQuickActionClicks(event) {
     $("savingsForm").elements.owner.value = owner;
     syncSavingsCurrentAmountField();
     syncSavingsSourceOwnerField();
-    focusForm("savingsForm", "label", "planning");
+    focusForm("savingsForm", "label", "planning", "planning-savings");
     return;
   }
 
   if (action === "sharedExpense") {
     resetForm("sharedExpenseForm");
     $("sharedExpenseForm").elements.paidBy.value = owner;
-    focusForm("sharedExpenseForm", "label", "entries");
+    focusForm("sharedExpenseForm", "label", "entries", "entries-shared");
   }
 }
 
-function focusForm(formId, fieldName, mobileSection) {
+function focusForm(formId, fieldName, mobileSection, mobileSubsection = "") {
   const form = $(formId);
   if (!form) {
     return;
   }
 
   if (mobileSection) {
-    mobileUiState.section = mobileSection;
-    renderMobileSections();
+    openMobileSection(mobileSection, mobileSubsection);
   }
   form.scrollIntoView({ behavior: "smooth", block: "start" });
   if (fieldName && form.elements[fieldName]) {
@@ -2716,6 +2832,19 @@ function editItem(collection, id) {
   }
   if (collection === "sharedExpenses" && form.elements.paidBy) {
     form.elements.paidBy.value = item.paidBy;
+  }
+  const mobileTargetByCollection = {
+    accounts: { section: "accounts" },
+    paychecks: { section: "entries", subsection: "entries-paychecks" },
+    bills: { section: "entries", subsection: "entries-bills" },
+    savingsGoals: { section: "planning", subsection: "planning-savings" },
+    sharedExpenses: { section: "entries", subsection: "entries-shared" },
+    transfers: { section: "entries", subsection: "entries-transfers" },
+    transactions: { section: "entries", subsection: "entries-transactions" },
+  };
+  const mobileTarget = mobileTargetByCollection[collection];
+  if (mobileTarget) {
+    openMobileSection(mobileTarget.section, mobileTarget.subsection);
   }
   form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
