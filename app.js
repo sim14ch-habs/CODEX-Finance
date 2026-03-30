@@ -1800,7 +1800,7 @@ function openMobileSection(section, subsection = "") {
 }
 
 function getMobileSectionBlocks(sectionKey) {
-  return Array.from(document.querySelectorAll(`[data-mobile-section="${sectionKey}"]`)).sort(
+  return Array.from(document.querySelectorAll(`main [data-mobile-section="${sectionKey}"]`)).sort(
     sortMobileSectionBlocks
   );
 }
@@ -1860,7 +1860,7 @@ function renderMobileSubsectionNav(sectionKey, blocks, isMobile, activeSubsectio
           class="mobile-subtab ${active ? "active" : ""}"
           type="button"
           data-mobile-subnav="${escapeHtml(meta.id)}"
-          data-mobile-section="${escapeHtml(sectionKey)}"
+          data-mobile-subnav-section="${escapeHtml(sectionKey)}"
           aria-pressed="${active ? "true" : "false"}"
         >
           ${escapeHtml(meta.label)}
@@ -1885,7 +1885,7 @@ function renderMobileSections() {
     activeBlocks.map((block, index) => [block, getMobileSubsectionMeta(block, index, activeSection).id])
   );
 
-  document.querySelectorAll("[data-mobile-section]").forEach((section) => {
+  document.querySelectorAll("main [data-mobile-section]").forEach((section) => {
     if (!isMobile) {
       section.hidden = false;
       return;
@@ -1919,7 +1919,10 @@ function handleMobileSubsectionClick(event) {
     return;
   }
 
-  openMobileSection(button.dataset.mobileSection || mobileUiState.section, button.dataset.mobileSubnav || "");
+  openMobileSection(
+    button.dataset.mobileSubnavSection || mobileUiState.section,
+    button.dataset.mobileSubnav || ""
+  );
 }
 
 function syncTransferFormOwners(changedField = "") {
