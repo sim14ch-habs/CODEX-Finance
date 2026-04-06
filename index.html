@@ -18,14 +18,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260406-1">
+    <link rel="stylesheet" href="styles.css?v=20260406-2">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-04-06 / mobile-nav-refresh</p>
+          <p class="eyebrow">Build 2026-04-06 / mobile-ux-pass</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -49,6 +49,7 @@
               </p>
             </div>
           </article>
+          <div id="syncGlanceMeta" class="sync-glance-meta"></div>
         </div>
         <div class="hero-spotlight">
           <div class="spotlight-card">
@@ -364,6 +365,7 @@
           </div>
           <div id="calendarGrid" class="calendar-grid"></div>
           <div id="calendarWeekTotals" class="calendar-week-totals"></div>
+          <div id="calendarDayDetail" class="calendar-day-detail"></div>
         </section>
 
         <section class="panel" data-mobile-section="mortgage">
@@ -682,7 +684,8 @@
               <button class="button ghost form-reset" data-form="accountForm" type="button">Vider</button>
             </div>
           </form>
-          <div class="table-wrap">
+          <div id="accountsGroupList" class="account-groups"></div>
+          <div class="table-wrap accounts-table-wrap">
             <table>
               <thead>
                 <tr>
@@ -908,7 +911,8 @@
               <p id="billsTableSummary" class="helper-text table-summary"></p>
               <button id="billsTableToggle" class="button ghost" type="button" hidden>Voir toutes les factures</button>
             </div>
-            <div class="table-wrap">
+            <div id="billsMobileList" class="mobile-entry-list"></div>
+            <div class="table-wrap mobile-table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -1071,7 +1075,8 @@
               <p id="sharedExpensesTableSummary" class="helper-text table-summary"></p>
               <button id="sharedExpensesTableToggle" class="button ghost" type="button" hidden>Voir toutes les dépenses partagées</button>
             </div>
-            <div class="table-wrap">
+            <div id="sharedExpensesMobileList" class="mobile-entry-list"></div>
+            <div class="table-wrap mobile-table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -1134,7 +1139,8 @@
                 <button class="button ghost form-reset" data-form="transferForm" type="button">Vider</button>
               </div>
             </form>
-            <div class="table-wrap">
+            <div id="transfersMobileList" class="mobile-entry-list"></div>
+            <div class="table-wrap mobile-table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -1204,7 +1210,8 @@
               <p id="transactionsTableSummary" class="helper-text table-summary"></p>
               <button id="transactionsTableToggle" class="button ghost" type="button" hidden>Voir tous les mouvements</button>
             </div>
-            <div class="table-wrap">
+            <div id="transactionsMobileList" class="mobile-entry-list"></div>
+            <div class="table-wrap mobile-table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -1256,7 +1263,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260318-2"></script>
-    <script src="app.js?v=20260406-1"></script>
+    <script src="app.js?v=20260406-2"></script>
   </body>
 </html>
 

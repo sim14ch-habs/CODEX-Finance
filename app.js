@@ -291,6 +291,7 @@ const compactTableState = {
 
 const calendarUiState = {
   monthCursor: startOfMonth(new Date()),
+  selectedDate: "",
 };
 
 const mobileUiState = {
@@ -298,6 +299,10 @@ const mobileUiState = {
   subsectionBySection: {},
   lastRenderedSection: "",
   lastRenderedSubsection: "",
+};
+
+const overviewUiState = {
+  expanded: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -446,6 +451,7 @@ function bindEvents() {
   document.addEventListener("click", handleTableActions);
   document.addEventListener("click", handleQuickActionClicks);
   document.addEventListener("click", handleCompactTableToggle);
+  document.addEventListener("click", handleOverviewToggleClick);
   document.addEventListener("click", handleMortgageScenarioActions);
   document.addEventListener("click", handleMobileSubsectionClick);
   $("mobileScrollTopBtn")?.addEventListener("click", scrollMobileNavigationIntoView);
@@ -494,6 +500,7 @@ function bindEvents() {
     calendarUiState.monthCursor = addMonthsClamped(calendarUiState.monthCursor, 1);
     renderCalendar();
   });
+  $("calendarGrid").addEventListener("click", handleCalendarDayClick);
   $("transferForm").elements.fromOwner.addEventListener("change", () => syncTransferFormOwners("fromOwner"));
   $("transferForm").elements.toOwner.addEventListener("change", () => syncTransferFormOwners("toOwner"));
 }
@@ -1371,7 +1378,8 @@ function renderSyncGlance() {
   const badge = $("syncGlanceBadge");
   const title = $("syncGlanceTitle");
   const detail = $("syncGlanceDetail");
-  if (!badge || !title || !detail) {
+  const meta = $("syncGlanceMeta");
+  if (!badge || !title || !detail || !meta) {
     return;
   }
 
@@ -1392,39 +1400,75 @@ function renderSyncGlance() {
     badge.classList.add("syncing");
   }
 
+  let stateLabel = "Mode local";
+  let actionLabel = "Continuez en local";
+
   if (!cloudState.config) {
     badge.textContent = "Mode local";
     title.textContent = "Budget local uniquement";
     detail.textContent = "Cette copie reste sur cet appareil tant qu'elle n'est pas reliée au cloud.";
-    return;
-  }
-
-  if (!cloudState.user || !cloudState.household) {
+    stateLabel = "Local seulement";
+    actionLabel = "Configurer le cloud plus tard";
+  } else if (!cloudState.user || !cloudState.household) {
     badge.textContent = "Cloud prêt";
     title.textContent = "Connexion cloud disponible";
     detail.textContent = "Connectez-vous et rejoignez le foyer pour voir les changements sur tous vos appareils.";
-    return;
-  }
-
-  if (cloudState.syncInFlight) {
+    stateLabel = "Connexion disponible";
+    actionLabel = "Se connecter";
+  } else if (cloudState.syncInFlight) {
     badge.textContent = "Envoi cloud";
     title.textContent = "Synchronisation en cours";
     detail.textContent = "Les dernières modifications sont en train d'être envoyées au foyer partagé.";
-    return;
-  }
-
-  if (hasPendingChanges) {
+    stateLabel = "Synchronisation";
+    actionLabel = "Laisser finir l'envoi";
+  } else if (hasPendingChanges) {
     badge.textContent = "Local à envoyer";
     title.textContent = "Des changements attendent le cloud";
     detail.textContent = "Cette page a des modifs locales plus récentes que la dernière synchro enregistrée.";
-    return;
+    stateLabel = "Cloud en attente";
+    actionLabel = "Envoyer mon budget local";
+  } else {
+    badge.textContent = "Cloud à jour";
+    title.textContent = "Budget partagé synchronisé";
+    detail.textContent = cloudState.lastSyncAt
+      ? `Dernière synchro ${formatCloudDateTime(cloudState.lastSyncAt)}.`
+      : "Le budget cloud est actif.";
+    stateLabel = "Cloud à jour";
+    actionLabel = "Continuer normalement";
   }
 
-  badge.textContent = "Cloud à jour";
-  title.textContent = "Budget partagé synchronisé";
-  detail.textContent = cloudState.lastSyncAt
-    ? `Dernière synchro ${formatCloudDateTime(cloudState.lastSyncAt)}.`
-    : "Le budget cloud est actif.";
+  const localBackup = readLocalBackup();
+  const metaCards = [
+    {
+      label: "État",
+      value: stateLabel,
+    },
+    {
+      label: "Dernière synchro",
+      value: cloudState.lastSyncAt ? formatCloudDateTime(cloudState.lastSyncAt) : "Pas encore",
+    },
+    {
+      label: "Action conseillée",
+      value: actionLabel,
+    },
+  ];
+  if (localBackup) {
+    metaCards.push({
+      label: "Copie locale",
+      value: formatCloudDateTime(localBackup.savedAt),
+    });
+  }
+
+  meta.innerHTML = metaCards
+    .map(
+      (card) => `
+        <article class="sync-glance-mini">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${escapeHtml(card.value)}</strong>
+        </article>
+      `
+    )
+    .join("");
 }
 
 function renderActivityLog() {
@@ -1453,20 +1497,70 @@ function renderActivityLog() {
 
   const entries = (state.activityLog || []).slice(0, 10);
   target.innerHTML = entries.length
-    ? entries
-        .map(
-          (entry) => `
-            <article class="activity-entry ${escapeHtml(entry.tone)}">
-              <div class="activity-entry-head">
-                <strong>${escapeHtml(entry.title)}</strong>
-                <span>${escapeHtml(formatCloudDateTime(entry.createdAt))}</span>
-              </div>
-              <p>${escapeHtml(entry.detail || "Aucun détail supplémentaire.")}</p>
-            </article>
-          `
-        )
-        .join("")
+    ? entries.map(renderActivityEntry).join("")
     : `<article class="empty-state">Le journal apparaîtra ici dès qu'une action importante sera faite.</article>`;
+}
+
+function renderActivityEntry(entry) {
+  const summary = splitActivityDetail(entry.detail);
+  const badge = getActivityBadge(entry);
+  return `
+    <article class="activity-entry ${escapeHtml(entry.tone)}">
+      <div class="activity-entry-head">
+        <div class="activity-entry-title">
+          <span class="activity-badge ${escapeHtml(badge.className)}">${escapeHtml(badge.label)}</span>
+          <strong>${escapeHtml(entry.title)}</strong>
+        </div>
+        <span>${escapeHtml(formatCloudDateTime(entry.createdAt))}</span>
+      </div>
+      <p class="activity-entry-lead">${escapeHtml(summary.lead)}</p>
+      ${summary.chips.length
+        ? `<div class="activity-meta">${summary.chips
+            .map((chip) => `<span class="activity-chip">${escapeHtml(chip)}</span>`)
+            .join("")}</div>`
+        : ""}
+    </article>
+  `;
+}
+
+function splitActivityDetail(detail) {
+  const bits = textValue(detail)
+    .split("•")
+    .map((bit) => textValue(bit))
+    .filter(Boolean);
+  if (!bits.length) {
+    return {
+      lead: "Aucun détail supplémentaire.",
+      chips: [],
+    };
+  }
+  return {
+    lead: bits[0],
+    chips: bits.slice(1),
+  };
+}
+
+function getActivityBadge(entry) {
+  const title = textValue(entry.title).toLowerCase();
+  if (title.includes("supprim")) {
+    return { label: "Suppression", className: "warning" };
+  }
+  if (title.includes("annulation") || title.includes("restaur")) {
+    return { label: "Retour", className: "neutral" };
+  }
+  if (title.includes("cloud") || title.includes("copie locale")) {
+    return { label: "Sync", className: "sync" };
+  }
+  if (title.includes("scénario hypothécaire")) {
+    return { label: "Hypothèque", className: "neutral" };
+  }
+  if (title.includes("compte")) {
+    return { label: "Compte", className: "neutral" };
+  }
+  if (title.includes("partagée")) {
+    return { label: "Partagée", className: "warning" };
+  }
+  return { label: "Action", className: "success" };
 }
 
 function formatCloudDateTime(value) {
@@ -1624,10 +1718,13 @@ function getCollectionItemLabel(key, item) {
 
 function getCollectionItemOwnerLabel(key, item) {
   if (key === "sharedExpenses") {
-    return item.paidBy;
+    return `Payé par ${formatOwnerLabel(item.paidBy)}`;
   }
   if (key === "transfers") {
     return `${formatOwnerLabel(item.fromOwner)} -> ${formatOwnerLabel(item.toOwner)}`;
+  }
+  if (key === "savingsGoals") {
+    return `${formatOwnerLabel(item.owner)}${item.sourceOwner ? ` depuis ${formatOwnerLabel(item.sourceOwner)}` : ""}`;
   }
   return item.owner;
 }
@@ -1648,6 +1745,21 @@ function buildCollectionActivityDetail(key, item) {
   const bits = [getCollectionItemLabel(key, item)];
   if (ownerLabel) {
     bits.push(ownerLabel);
+  }
+  if (key === "bills" && item.category) {
+    bits.push(item.category);
+  }
+  if (key === "sharedExpenses") {
+    const debt = calculateSharedExpenseDebt(item);
+    bits.push(
+      debt ? `${formatOwnerLabel(debt.fromOwner)} doit ${formatCurrency(debt.amount)}` : "Sans dette interne"
+    );
+  }
+  if (key === "transactions") {
+    bits.push(TYPE_LABELS[item.type] || item.type || "Mouvement");
+  }
+  if (key === "accounts") {
+    bits.push(ACCOUNT_KIND_LABELS[item.kind] || item.kind || "Compte");
   }
   if (amount) {
     bits.push(formatCurrency(amount));
@@ -2390,48 +2502,56 @@ function renderStats() {
   const debtSummary = computeSharedDebtSummary();
   const cards = [
     {
+      key: "total",
       label: "Solde total",
       value: formatCurrency(totalBalance),
       note: "Addition de tous les comptes actuels.",
       tone: totalBalance < 0 ? "negative" : "positive",
     },
     {
+      key: "shared",
       label: "Comptes communs",
       value: formatCurrency(sharedBalance),
       note: `${sharedAccounts.length} compte${sharedAccounts.length > 1 ? "s" : ""} commun${sharedAccounts.length > 1 ? "s" : ""} actif${sharedAccounts.length > 1 ? "s" : ""}.`,
       tone: sharedBalance < 0 ? "negative" : "",
     },
     {
+      key: "income",
       label: "Revenus mensuels",
       value: formatCurrency(metrics.monthlyIncome),
       note: "Moyenne de vos paies récurrentes.",
       tone: "positive",
     },
     {
+      key: "bills",
       label: "Factures mensuelles",
       value: formatCurrency(metrics.monthlyBills),
       note: "Sorties fixes estimées.",
       tone: metrics.monthlyBills > 0 ? "negative" : "",
     },
     {
+      key: "savings",
       label: "Épargne mensuelle",
       value: formatCurrency(metrics.monthlySavings),
       note: `Perso ${formatCurrency(metrics.monthlyPersonalSavings)} • Commune ${formatCurrency(metrics.monthlySharedSavings)}.`,
       tone: "",
     },
     {
+      key: "net",
       label: "Net mensuel",
       value: formatCurrency(metrics.monthlyNet),
       note: metrics.monthlyNet >= 0 ? "Le budget respire encore." : "La cadence est trop lourde.",
       tone: metrics.monthlyNet >= 0 ? "positive" : "negative",
     },
     {
+      key: "alerts",
       label: "Alertes actives",
       value: String(alerts.length),
       note: alerts.length ? "Points à surveiller sur vos comptes et objectifs." : "Aucun signal bloquant pour l'instant.",
       tone: alerts.length ? "negative" : "positive",
     },
     {
+      key: "debt",
       label: "Solde net entre vous",
       value: formatCurrency(Math.abs(debtSummary.net)),
       note:
@@ -2443,8 +2563,22 @@ function renderStats() {
       tone: debtSummary.net === 0 ? "positive" : "",
     },
   ];
+  const isMobile = window.innerWidth <= 760;
+  const essentialKeys = new Set(["total", "net", "bills", "debt"]);
+  const visibleCards = isMobile && !overviewUiState.expanded
+    ? cards.filter((card) => essentialKeys.has(card.key))
+    : cards;
+  const toggleCard = isMobile
+    ? `
+      <button class="stat-card stat-card-toggle fade-in" type="button" data-overview-toggle>
+        <span>Aperçu mobile</span>
+        <strong>${overviewUiState.expanded ? "Voir l'essentiel" : "Voir tout"}</strong>
+        <p>${overviewUiState.expanded ? "Revenir aux chiffres clés pour réduire le scroll." : "Afficher toutes les cartes du résumé."}</p>
+      </button>
+    `
+    : "";
 
-  $("statsGrid").innerHTML = cards
+  $("statsGrid").innerHTML = `${visibleCards
     .map(
       (card) => `
         <article class="stat-card fade-in">
@@ -2454,7 +2588,7 @@ function renderStats() {
         </article>
       `
     )
-    .join("");
+    .join("")}${toggleCard}`;
 }
 
 function renderTables() {
@@ -2474,6 +2608,13 @@ function renderTables() {
     expandLabel: "Voir toutes les factures",
     collapseLabel: "Réduire la liste",
   });
+  renderMobileCollection({
+    key: "bills",
+    rows: state.bills,
+    targetId: "billsMobileList",
+    renderer: renderBillCard,
+    emptyMessage: "Aucune facture récurrente pour le moment.",
+  });
   renderTable("savingsTable", state.savingsGoals, 7, renderSavingsRow);
   renderCompactTable({
     key: "sharedExpenses",
@@ -2490,7 +2631,20 @@ function renderTables() {
     expandLabel: "Voir toutes les dépenses partagées",
     collapseLabel: "Réduire la liste",
   });
+  renderMobileCollection({
+    key: "sharedExpenses",
+    rows: state.sharedExpenses.slice().sort(sortByDateDesc),
+    targetId: "sharedExpensesMobileList",
+    renderer: renderSharedExpenseCard,
+    emptyMessage: "Aucune dépense partagée pour le moment.",
+  });
   renderTable("transfersTable", state.transfers.slice().sort(sortByDateDesc), 6, renderTransferRow);
+  renderMobileCollection({
+    rows: state.transfers.slice().sort(sortByDateDesc),
+    targetId: "transfersMobileList",
+    renderer: renderTransferCard,
+    emptyMessage: "Aucun virement pour le moment.",
+  });
   renderCompactTable({
     key: "transactions",
     rows: state.transactions.slice().sort(sortByDateDesc),
@@ -2506,6 +2660,13 @@ function renderTables() {
     expandLabel: "Voir tous les mouvements",
     collapseLabel: "Réduire la liste",
   });
+  renderMobileCollection({
+    key: "transactions",
+    rows: state.transactions.slice().sort(sortByDateDesc),
+    targetId: "transactionsMobileList",
+    renderer: renderTransactionCard,
+    emptyMessage: "Aucun mouvement unique pour le moment.",
+  });
 }
 
 function renderAccountsTable() {
@@ -2518,7 +2679,60 @@ function renderAccountsTable() {
       return textValue(left.owner).localeCompare(textValue(right.owner), "fr-CA");
     });
 
+  renderAccountGroups(rows);
   renderTable("accountsTable", rows, 6, renderAccountRow);
+}
+
+function renderAccountGroups(rows) {
+  const target = $("accountsGroupList");
+  if (!target) {
+    return;
+  }
+
+  const holderOrder = [ACCOUNT_HOLDERS.partnerOne, ACCOUNT_HOLDERS.partnerTwo, ACCOUNT_HOLDERS.shared];
+  const groups = holderOrder
+    .map((holder) => {
+      const accounts = rows.filter((account) => account.holder === holder);
+      if (!accounts.length) {
+        return "";
+      }
+      const total = roundCurrency(sumBy(accounts, (account) => account.balance || 0));
+      return `
+        <article class="account-group fade-in">
+          <div class="account-group-head">
+            <div>
+              <span>${escapeHtml(formatAccountHolder(holder))}</span>
+              <strong>${escapeHtml(formatCurrency(total))}</strong>
+            </div>
+            <p>${accounts.length} compte${accounts.length > 1 ? "s" : ""}</p>
+          </div>
+          <div class="account-group-list">
+            ${accounts.map(renderAccountGroupItem).join("")}
+          </div>
+        </article>
+      `;
+    })
+    .filter(Boolean)
+    .join("");
+
+  target.innerHTML = groups || `<article class="empty-state">Ajoute au moins un compte pour voir le regroupement.</article>`;
+}
+
+function renderAccountGroupItem(account) {
+  return `
+    <article class="account-group-item">
+      <div class="account-group-item-head">
+        <div>
+          <strong>${escapeHtml(account.owner)}</strong>
+          <p>${escapeHtml(ACCOUNT_KIND_LABELS[account.kind] || account.kind)} • ${escapeHtml(
+            ACCOUNT_STATUS_LABELS[account.status] || account.status
+          )}</p>
+        </div>
+        <span class="${account.balance < 0 ? "negative" : "positive"}">${escapeHtml(formatCurrency(account.balance || 0))}</span>
+      </div>
+      ${renderAccountActions(account)}
+    </article>
+  `;
 }
 
 function renderTable(targetId, rows, colSpan, renderer) {
@@ -2569,6 +2783,106 @@ function renderCompactTable(config) {
   toggle.hidden = false;
   toggle.textContent = expanded ? config.collapseLabel : config.expandLabel;
   toggle.dataset.compactTable = config.key;
+}
+
+function renderMobileCollection(config) {
+  const target = $(config.targetId);
+  if (!target) {
+    return;
+  }
+
+  const rows = Array.isArray(config.rows) ? config.rows : [];
+  const expanded = config.key ? Boolean(compactTableState[config.key]) : true;
+  const hasOverflow = Boolean(config.key) && rows.length > COMPACT_TABLE_LIMIT;
+  const visibleRows = expanded || !hasOverflow ? rows : rows.slice(0, COMPACT_TABLE_LIMIT);
+
+  target.innerHTML = visibleRows.length
+    ? visibleRows.map(config.renderer).join("")
+    : `<article class="empty-state">${escapeHtml(config.emptyMessage || "Aucune donnée pour le moment.")}</article>`;
+}
+
+function renderBillCard(item) {
+  const scheduleLabel = item.endDate ? `Jusqu'au ${formatDate(item.endDate)}` : FREQUENCY_LABELS[item.frequency] || item.frequency;
+  return `
+    <article class="mobile-entry-card">
+      <div class="mobile-entry-head">
+        <div>
+          <strong>${escapeHtml(item.label)}</strong>
+          <p>${escapeHtml(formatOwnerLabel(item.owner))}</p>
+        </div>
+        <span class="mobile-entry-amount negative">${escapeHtml(formatCurrency(item.amount))}</span>
+      </div>
+      <div class="mobile-entry-meta">
+        <span>${escapeHtml(item.category || "Sans catégorie")}</span>
+        <span>${escapeHtml(scheduleLabel)}</span>
+        <span>${escapeHtml(formatDate(item.nextDate))}</span>
+      </div>
+      ${renderActions("bills", item.id)}
+    </article>
+  `;
+}
+
+function renderSharedExpenseCard(item) {
+  const debt = calculateSharedExpenseDebt(item);
+  const shareLabel = isSharedHolder(item.payerHolder)
+    ? "Compte commun"
+    : `${Math.round(parseAmount(item.sharePercent))} % remboursé`;
+  return `
+    <article class="mobile-entry-card">
+      <div class="mobile-entry-head">
+        <div>
+          <strong>${escapeHtml(item.label)}</strong>
+          <p>${escapeHtml(formatOwnerLabel(item.paidBy))}</p>
+        </div>
+        <span class="mobile-entry-amount negative">${escapeHtml(formatCurrency(item.amount))}</span>
+      </div>
+      <div class="mobile-entry-meta">
+        <span>${escapeHtml(formatDate(item.date))}</span>
+        <span>${escapeHtml(shareLabel)}</span>
+        <span>${escapeHtml(debt ? `${formatOwnerLabel(debt.fromOwner)} doit ${formatCurrency(debt.amount)}` : "Sans dette interne")}</span>
+      </div>
+      ${renderActions("sharedExpenses", item.id)}
+    </article>
+  `;
+}
+
+function renderTransferCard(item) {
+  return `
+    <article class="mobile-entry-card">
+      <div class="mobile-entry-head">
+        <div>
+          <strong>${escapeHtml(item.label || "Virement")}</strong>
+          <p>${escapeHtml(formatOwnerLabel(item.fromOwner))} -> ${escapeHtml(formatOwnerLabel(item.toOwner))}</p>
+        </div>
+        <span class="mobile-entry-amount">${escapeHtml(formatCurrency(item.amount))}</span>
+      </div>
+      <div class="mobile-entry-meta">
+        <span>${escapeHtml(formatDate(item.date))}</span>
+        ${item.settlesDebt ? `<span>Règlement interne</span>` : ""}
+      </div>
+      ${renderActions("transfers", item.id)}
+    </article>
+  `;
+}
+
+function renderTransactionCard(item) {
+  const amount = transactionDelta(item);
+  return `
+    <article class="mobile-entry-card">
+      <div class="mobile-entry-head">
+        <div>
+          <strong>${escapeHtml(item.label)}</strong>
+          <p>${escapeHtml(formatOwnerLabel(item.owner))}</p>
+        </div>
+        <span class="mobile-entry-amount ${amount >= 0 ? "positive" : "negative"}">${escapeHtml(formatSignedCurrency(amount))}</span>
+      </div>
+      <div class="mobile-entry-meta">
+        <span>${escapeHtml(formatDate(item.date))}</span>
+        <span>${escapeHtml(TYPE_LABELS[item.type] || item.type)}</span>
+      </div>
+      ${renderActions("transactions", item.id)}
+    </article>
+  `;
 }
 
 function renderAccountRow(account) {
@@ -2734,6 +3048,16 @@ function handleCompactTableToggle(event) {
 
   compactTableState[key] = !compactTableState[key];
   renderTables();
+}
+
+function handleOverviewToggleClick(event) {
+  const button = event.target.closest("[data-overview-toggle]");
+  if (!button) {
+    return;
+  }
+
+  overviewUiState.expanded = !overviewUiState.expanded;
+  renderStats();
 }
 
 function renderAccountActions(account) {
@@ -3044,7 +3368,8 @@ function renderCalendar() {
   const label = $("calendarMonthLabel");
   const summaryTarget = $("calendarSummaryCards");
   const weekTotalsTarget = $("calendarWeekTotals");
-  if (!grid || !label || !summaryTarget || !weekTotalsTarget) {
+  const detailTarget = $("calendarDayDetail");
+  if (!grid || !label || !summaryTarget || !weekTotalsTarget || !detailTarget) {
     return;
   }
 
@@ -3061,6 +3386,8 @@ function renderCalendar() {
     }
     eventsByDate.get(key).push(event);
   });
+  const selectedDate = resolveCalendarSelectedDate(monthStart, monthEnd, eventsByDate);
+  calendarUiState.selectedDate = selectedDate;
 
   label.textContent = monthStart.toLocaleDateString("fr-CA", { month: "long", year: "numeric" });
 
@@ -3074,8 +3401,14 @@ function renderCalendar() {
     const dayTotal = sumBy(dayEvents, getCalendarDayDelta);
     const showDayTotal = dayEvents.some((event) => event.kind !== "transfer");
     const dayTotalTone = dayTotal > 0 ? "positive" : dayTotal < 0 ? "negative" : "neutral";
+    const selectedClass = key === selectedDate ? " is-selected" : "";
     days.push(`
-      <article class="calendar-day${sameCalendarMonth(cursor, monthStart) ? "" : " is-muted"}${isSameDay(cursor, new Date()) ? " is-today" : ""}">
+      <button
+        class="calendar-day${sameCalendarMonth(cursor, monthStart) ? "" : " is-muted"}${isSameDay(cursor, new Date()) ? " is-today" : ""}${selectedClass}"
+        type="button"
+        data-calendar-date="${escapeHtml(key)}"
+        aria-pressed="${key === selectedDate ? "true" : "false"}"
+      >
         <div class="calendar-day-head">
           <span>${escapeHtml(String(cursor.getDate()))}</span>
         </div>
@@ -3084,7 +3417,7 @@ function renderCalendar() {
           ${extraCount ? `<p class="calendar-more">+ ${extraCount} autre${extraCount > 1 ? "s" : ""}</p>` : ""}
         </div>
         ${showDayTotal ? `<p class="calendar-day-total ${dayTotalTone}">Total du jour ${escapeHtml(formatSignedCurrency(dayTotal))}</p>` : ""}
-      </article>
+      </button>
     `);
     if ((index + 1) % 7 === 0) {
       const weekStart = addDays(cursor, -6);
@@ -3138,6 +3471,88 @@ function renderCalendar() {
       `
     )
     .join("");
+  renderCalendarDayDetail(selectedDate, eventsByDate.get(selectedDate) || [], detailTarget);
+}
+
+function resolveCalendarSelectedDate(monthStart, monthEnd, eventsByDate) {
+  const preferred = textValue(calendarUiState.selectedDate);
+  if (preferred) {
+    const preferredDate = parseDate(preferred);
+    if (!Number.isNaN(preferredDate.getTime()) && preferredDate >= monthStart && preferredDate <= monthEnd) {
+      return preferred;
+    }
+  }
+
+  const today = startOfDay(new Date());
+  if (today >= monthStart && today <= monthEnd) {
+    return formatInputDate(today);
+  }
+
+  const datedEvents = Array.from(eventsByDate.keys())
+    .filter((key) => {
+      const date = parseDate(key);
+      return date >= monthStart && date <= monthEnd;
+    })
+    .sort();
+  return datedEvents[0] || formatInputDate(monthStart);
+}
+
+function renderCalendarDayDetail(dateKey, dayEvents, target) {
+  const selectedDate = parseDate(dateKey);
+  const dayTotal = roundCurrency(sumBy(dayEvents, getCalendarDayDelta));
+  const tone = dayTotal > 0 ? "positive" : dayTotal < 0 ? "negative" : "neutral";
+  const summaryLabel = dayEvents.length
+    ? `${dayEvents.length} mouvement${dayEvents.length > 1 ? "s" : ""} sur cette journée.`
+    : "Aucun mouvement prévu sur cette journée.";
+
+  target.innerHTML = `
+    <article class="calendar-day-detail-card">
+      <div class="calendar-day-detail-head">
+        <div>
+          <span>Jour sélectionné</span>
+          <strong>${escapeHtml(formatDate(selectedDate))}</strong>
+          <p>${escapeHtml(summaryLabel)}</p>
+        </div>
+        <div class="calendar-day-detail-total ${tone}">
+          <span>Total du jour</span>
+          <strong>${escapeHtml(formatSignedCurrency(dayTotal))}</strong>
+        </div>
+      </div>
+      <div class="calendar-day-detail-list">
+        ${dayEvents.length
+          ? dayEvents
+              .map(
+                (event) => `
+                  <article class="calendar-day-detail-item ${escapeHtml(event.kind === "income" ? "positive" : event.kind === "transfer" ? "transfer" : "negative")}">
+                    <div>
+                      <strong>${escapeHtml(event.label)}</strong>
+                      <p>${escapeHtml(
+                        event.kind === "transfer"
+                          ? `${formatOwnerLabel(event.fromOwner)} -> ${formatOwnerLabel(event.toOwner)}`
+                          : event.meta || formatOwnerLabel(event.owner)
+                      )}</p>
+                    </div>
+                    <span>${escapeHtml(
+                      event.kind === "transfer" ? formatCurrency(event.amount || 0) : formatSignedCurrency(event.delta || 0)
+                    )}</span>
+                  </article>
+                `
+              )
+              .join("")
+          : `<article class="empty-state">Choisis une autre journée du calendrier pour voir ses mouvements détaillés.</article>`}
+      </div>
+    </article>
+  `;
+}
+
+function handleCalendarDayClick(event) {
+  const button = event.target.closest("[data-calendar-date]");
+  if (!button) {
+    return;
+  }
+
+  calendarUiState.selectedDate = textValue(button.dataset.calendarDate);
+  renderCalendar();
 }
 
 function collectCalendarEvents(start, end) {
