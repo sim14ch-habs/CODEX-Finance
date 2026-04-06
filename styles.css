@@ -70,6 +70,10 @@ textarea {
   gap: 10px;
   margin: 16px 0 0;
   padding: 0 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
 }
 
 .mobile-subsection-nav {
@@ -79,23 +83,27 @@ textarea {
   padding: 0 6px 4px;
   overflow-x: auto;
   scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
 }
 
+.mobile-section-nav::-webkit-scrollbar,
 .mobile-subsection-nav::-webkit-scrollbar {
   display: none;
 }
 
 .mobile-tab {
-  flex: 1;
+  flex: 0 0 auto;
   border: 1px solid rgba(19, 35, 29, 0.12);
   background: rgba(255, 255, 255, 0.7);
   color: var(--text);
   border-radius: 999px;
-  padding: 10px 12px;
+  padding: 11px 16px;
   min-height: 46px;
   line-height: 1.15;
   text-align: center;
-  white-space: normal;
+  white-space: nowrap;
+  scroll-snap-align: center;
 }
 
 .mobile-tab.active {
@@ -113,6 +121,7 @@ textarea {
   padding: 9px 14px;
   min-height: 40px;
   white-space: nowrap;
+  scroll-snap-align: center;
 }
 
 .mobile-subtab.active {
@@ -249,6 +258,10 @@ textarea {
   background: rgba(255, 255, 255, 0.5);
   color: var(--text);
   border: 1px solid rgba(19, 35, 29, 0.1);
+}
+
+.mobile-top-button {
+  display: none;
 }
 
 .hero-spotlight {
@@ -1225,6 +1238,7 @@ textarea {
 .table-wrap {
   padding: 0 28px 28px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table-tools {
@@ -1379,8 +1393,7 @@ svg {
 
 @media (max-width: 760px) {
   .mobile-section-nav {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
     position: sticky;
     top: 10px;
     z-index: 30;
@@ -1388,10 +1401,19 @@ svg {
     background: rgba(246, 239, 228, 0.88);
     backdrop-filter: blur(14px);
     border-radius: 22px;
+    box-shadow: 0 10px 26px rgba(49, 35, 9, 0.08);
   }
 
   .mobile-subsection-nav {
     display: flex;
+    position: sticky;
+    top: 74px;
+    z-index: 29;
+    padding-top: 8px;
+    padding-bottom: 10px;
+    margin-top: 0;
+    background: linear-gradient(180deg, rgba(246, 239, 228, 0.96), rgba(246, 239, 228, 0.82));
+    backdrop-filter: blur(12px);
   }
 
   .page-shell {
@@ -1438,6 +1460,23 @@ svg {
 
   .hero h1 {
     max-width: 12ch;
+  }
+
+  .mobile-top-button {
+    display: inline-flex;
+    position: fixed;
+    right: 16px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    z-index: 34;
+    padding: 12px 16px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--primary), #0d4649);
+    color: white;
+    box-shadow: 0 14px 34px rgba(21, 94, 99, 0.24);
+  }
+
+  .mobile-top-button.is-visible {
+    display: inline-flex;
   }
 
   .grid-form,

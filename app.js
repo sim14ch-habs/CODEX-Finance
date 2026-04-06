@@ -296,6 +296,8 @@ const calendarUiState = {
 const mobileUiState = {
   section: "overview",
   subsectionBySection: {},
+  lastRenderedSection: "",
+  lastRenderedSubsection: "",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -446,6 +448,7 @@ function bindEvents() {
   document.addEventListener("click", handleCompactTableToggle);
   document.addEventListener("click", handleMortgageScenarioActions);
   document.addEventListener("click", handleMobileSubsectionClick);
+  $("mobileScrollTopBtn")?.addEventListener("click", scrollMobileNavigationIntoView);
 
   $("cloudAuthForm").addEventListener("submit", handleCloudAuthSubmit);
   $("cloudCreateForm").addEventListener("submit", handleCreateHouseholdSubmit);
@@ -463,11 +466,11 @@ function bindEvents() {
   });
   document.querySelectorAll("[data-mobile-nav]").forEach((button) => {
     button.addEventListener("click", () => {
-      mobileUiState.section = button.dataset.mobileNav || "overview";
-      renderMobileSections();
+      openMobileSection(button.dataset.mobileNav || "overview", "", { revealContent: true });
     });
   });
   window.addEventListener("resize", renderMobileSections);
+  window.addEventListener("scroll", updateMobileScrollTopButton, { passive: true });
   $("savingsForm").elements.scope.addEventListener("change", updateSavingsFormOwnership);
   $("savingsForm").elements.owner.addEventListener("change", () => {
     syncSavingsCurrentAmountField();
@@ -1787,7 +1790,7 @@ function renderBalanceLabels() {
   $("householdBalanceSummary").textContent = `Total actuel: ${formatCurrency(getTotalCurrentBalance())} • ${activeCount} compte${activeCount > 1 ? "s" : ""} actif${activeCount > 1 ? "s" : ""}`;
 }
 
-function openMobileSection(section, subsection = "") {
+function openMobileSection(section, subsection = "", options = {}) {
   if (!section) {
     return;
   }
@@ -1797,6 +1800,9 @@ function openMobileSection(section, subsection = "") {
     mobileUiState.subsectionBySection[section] = subsection;
   }
   renderMobileSections();
+  if (options.revealContent) {
+    scrollMobileNavigationIntoView();
+  }
 }
 
 function getMobileSectionBlocks(sectionKey) {
@@ -1870,6 +1876,50 @@ function renderMobileSubsectionNav(sectionKey, blocks, isMobile, activeSubsectio
     .join("");
 }
 
+function syncMobileNavVisibility(activeSection, activeSubsectionId, isMobile) {
+  const sectionChanged = mobileUiState.lastRenderedSection !== activeSection;
+  const subsectionChanged = mobileUiState.lastRenderedSubsection !== activeSubsectionId;
+  mobileUiState.lastRenderedSection = activeSection;
+  mobileUiState.lastRenderedSubsection = activeSubsectionId;
+
+  if (!isMobile || (!sectionChanged && !subsectionChanged)) {
+    return;
+  }
+
+  const activeSectionButton = document.querySelector(`[data-mobile-nav="${activeSection}"]`);
+  const activeSubsectionButton = document.querySelector(
+    `[data-mobile-subnav="${activeSubsectionId}"]`
+  );
+  requestAnimationFrame(() => {
+    activeSectionButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    activeSubsectionButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  });
+}
+
+function scrollMobileNavigationIntoView() {
+  if (window.innerWidth > 760) {
+    return;
+  }
+
+  const nav = $("mobileSectionNav");
+  if (!nav) {
+    return;
+  }
+
+  nav.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+}
+
+function updateMobileScrollTopButton() {
+  const button = $("mobileScrollTopBtn");
+  if (!button) {
+    return;
+  }
+
+  const visible = window.innerWidth <= 760 && window.scrollY > 420;
+  button.hidden = !visible;
+  button.classList.toggle("is-visible", visible);
+}
+
 function renderMobileSections() {
   const nav = $("mobileSectionNav");
   if (!nav) {
@@ -1911,6 +1961,8 @@ function renderMobileSections() {
   });
 
   renderMobileSubsectionNav(activeSection, activeBlocks, isMobile, activeSubsectionId);
+  syncMobileNavVisibility(activeSection, activeSubsectionId, isMobile);
+  updateMobileScrollTopButton();
 }
 
 function handleMobileSubsectionClick(event) {
@@ -1919,10 +1971,9 @@ function handleMobileSubsectionClick(event) {
     return;
   }
 
-  openMobileSection(
-    button.dataset.mobileSubnavSection || mobileUiState.section,
-    button.dataset.mobileSubnav || ""
-  );
+  openMobileSection(button.dataset.mobileSubnavSection || mobileUiState.section, button.dataset.mobileSubnav || "", {
+    revealContent: true,
+  });
 }
 
 function syncTransferFormOwners(changedField = "") {
