@@ -64,6 +64,10 @@ const MORTGAGE_PREPAYMENT_FREQUENCY_LABELS = {
 const DEFAULT_MORTGAGE_TOOL = {
   scenarioId: "",
   scenarioName: "",
+  inputMode: "mortgage_amount",
+  purchasePrice: 0,
+  downPaymentValue: 20,
+  downPaymentType: "percent",
   principal: 100000,
   interestRate: 5,
   amortizationYears: 25,
@@ -3643,6 +3647,7 @@ function handleMortgageFormSubmit(event) {
   event.preventDefault();
   state.mortgageTool = readMortgageForm(event.currentTarget);
   persistState();
+  syncMortgageInputModeUI(state.mortgageTool);
   syncMortgageHelperText(state.mortgageTool);
   renderMortgageToolOutput(state.mortgageTool);
 }
@@ -3650,6 +3655,7 @@ function handleMortgageFormSubmit(event) {
 function handleMortgageFormInput(event) {
   state.mortgageTool = readMortgageForm(event.currentTarget);
   persistState({ skipCloud: true });
+  syncMortgageInputModeUI(state.mortgageTool);
   syncMortgageHelperText(state.mortgageTool);
   renderMortgageToolOutput(state.mortgageTool);
 }
@@ -3670,6 +3676,10 @@ function readMortgageForm(form) {
   return sanitizeMortgageTool({
     scenarioId: form.elements.scenarioId.value,
     scenarioName: form.elements.scenarioName.value,
+    inputMode: form.elements.inputMode.value,
+    purchasePrice: form.elements.purchasePrice.value,
+    downPaymentValue: form.elements.downPaymentValue.value,
+    downPaymentType: form.elements.downPaymentType.value,
     principal: form.elements.principal.value,
     interestRate: form.elements.interestRate.value,
     amortizationYears: form.elements.amortizationYears.value,
@@ -3694,6 +3704,7 @@ function readMortgageForm(form) {
 
 function renderMortgageTool() {
   populateMortgageForm();
+  syncMortgageInputModeUI(state.mortgageTool);
   syncMortgageHelperText(state.mortgageTool);
   syncMortgageScenarioHelper(state.mortgageTool);
   renderMortgageScenarios();
@@ -3709,6 +3720,11 @@ function populateMortgageForm() {
   const mortgage = sanitizeMortgageTool(state.mortgageTool);
   form.elements.scenarioId.value = mortgage.scenarioId || "";
   form.elements.scenarioName.value = mortgage.scenarioName || "";
+  form.elements.inputMode.value = mortgage.inputMode;
+  form.elements.purchasePrice.value = mortgage.purchasePrice || mortgage.purchasePrice === 0 ? String(mortgage.purchasePrice) : "";
+  form.elements.downPaymentValue.value =
+    mortgage.downPaymentValue || mortgage.downPaymentValue === 0 ? String(mortgage.downPaymentValue) : "";
+  form.elements.downPaymentType.value = mortgage.downPaymentType;
   form.elements.principal.value = mortgage.principal || mortgage.principal === 0 ? String(mortgage.principal) : "";
   form.elements.interestRate.value = mortgage.interestRate || mortgage.interestRate === 0 ? String(mortgage.interestRate) : "";
   form.elements.amortizationYears.value =
@@ -3730,6 +3746,50 @@ function populateMortgageForm() {
   form.elements.internetMonthly.value = String(mortgage.internetMonthly || 0);
   form.elements.maintenanceAnnual.value = String(mortgage.maintenanceAnnual || 0);
   form.elements.otherHousingMonthly.value = String(mortgage.otherHousingMonthly || 0);
+}
+
+function syncMortgageInputModeUI(mortgage = state.mortgageTool) {
+  const form = $("mortgageForm");
+  const purchasePriceField = $("mortgagePurchasePriceField");
+  const downPaymentValueField = $("mortgageDownPaymentValueField");
+  const downPaymentTypeField = $("mortgageDownPaymentTypeField");
+  const principalLabel = $("mortgagePrincipalLabel");
+  const loanHelper = $("mortgageLoanHelper");
+  if (!form || !purchasePriceField || !downPaymentValueField || !downPaymentTypeField || !principalLabel || !loanHelper) {
+    return;
+  }
+
+  const settings = sanitizeMortgageTool(mortgage);
+  const usingPurchasePrice = settings.inputMode === "purchase_price";
+  purchasePriceField.hidden = !usingPurchasePrice;
+  downPaymentValueField.hidden = !usingPurchasePrice;
+  downPaymentTypeField.hidden = !usingPurchasePrice;
+  form.elements.principal.readOnly = usingPurchasePrice;
+  principalLabel.textContent = usingPurchasePrice
+    ? "Montant du prêt calculé"
+    : "Montant du prêt hypothécaire";
+
+  const base = resolveMortgageBaseAmounts(settings);
+  if (usingPurchasePrice) {
+    form.elements.principal.value = base.principalAmount > 0 ? String(roundCurrency(base.principalAmount)) : "";
+    if (!base.isValid) {
+      loanHelper.textContent = base.errorMessage || "Ajoute un prix d'achat et une mise de fonds valides pour calculer le prêt.";
+      return;
+    }
+
+    const insuranceText = base.requiresInsurance
+      ? `Prime SCHL ${formatPercent(base.insurancePremiumRate * 100, 2)} = ${formatCurrency(base.insurancePremiumAmount)}.`
+      : "Aucune prime SCHL requise.";
+    loanHelper.textContent = `Mise de fonds ${formatCurrency(base.downPaymentAmount)} (${formatPercent(
+      base.downPaymentPercent,
+      2
+    )}) • prêt avant assurance ${formatCurrency(base.loanBeforeInsurance)} • prêt final ${formatCurrency(
+      base.principalAmount
+    )} • ${insuranceText}`;
+    return;
+  }
+
+  loanHelper.textContent = "Le prêt peut être entré directement, ou calculé à partir du prix d'achat et de la mise de fonds.";
 }
 
 function syncMortgageScenarioHelper(mortgage = state.mortgageTool) {
@@ -3770,6 +3830,12 @@ function renderMortgageScenarios() {
       const isActive = state.mortgageTool.scenarioId === scenario.id;
       const monthlyCost = result.isValid ? formatCurrency(result.carryingCosts.totalMonthlyHousingCost) : "-";
       const payment = result.isValid ? formatCurrency(result.regularPayment) : "-";
+      const mortgageAmountLabel = result.isValid
+        ? formatCurrency(result.loanDetails.principalAmount)
+        : formatCurrency(scenario.settings.principal);
+      const modeLabel = scenario.settings.inputMode === "purchase_price" && result.loanDetails.purchasePrice > 0
+        ? `Achat ${formatCurrency(result.loanDetails.purchasePrice)}`
+        : "Prêt direct";
       return `
         <article class="mortgage-scenario-card${isActive ? " is-active" : ""}">
           <div class="mortgage-scenario-head">
@@ -3784,9 +3850,10 @@ function renderMortgageScenarios() {
             <span class="badge">Tout inclus ${escapeHtml(monthlyCost)}</span>
           </div>
           <div class="mortgage-scenario-meta">
-            <span>${escapeHtml(formatCurrency(scenario.settings.principal))}</span>
+            <span>${escapeHtml(mortgageAmountLabel)}</span>
             <span>${escapeHtml(formatPercent(scenario.settings.interestRate, 2))}</span>
             <span>${escapeHtml(getMortgageFrequencyDefinition(scenario.settings.paymentFrequency).label)}</span>
+            <span>${escapeHtml(modeLabel)}</span>
           </div>
           <div class="table-actions">
             <button class="table-button edit" type="button" data-mortgage-scenario-action="load" data-id="${escapeHtml(scenario.id)}">Charger</button>
@@ -3951,7 +4018,7 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
 
   if (!result.isValid) {
     $("mortgageRegularPayment").textContent = "-";
-    $("mortgageLead").textContent = "Entre un capital et un amortissement valides pour obtenir une estimation.";
+    $("mortgageLead").textContent = result.errorMessage || "Entre un capital et un amortissement valides pour obtenir une estimation.";
     if (quickStatsTarget) {
       quickStatsTarget.innerHTML = "";
     }
@@ -4000,7 +4067,15 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
   }
 
   $("mortgageRegularPayment").textContent = formatCurrency(result.regularPayment);
-  $("mortgageLead").textContent = `${formatCurrency(result.regularPayment)} ${getMortgagePaymentUnitLabel(result.settings.paymentFrequency)} sur un prêt de ${formatCurrency(result.settings.principal)}.`;
+  $("mortgageLead").textContent = result.loanDetails.inputMode === "purchase_price"
+    ? `${formatCurrency(result.regularPayment)} ${getMortgagePaymentUnitLabel(result.settings.paymentFrequency)} sur un prêt de ${formatCurrency(
+        result.loanDetails.principalAmount
+      )}, avec une mise de fonds de ${formatCurrency(result.loanDetails.downPaymentAmount)}${
+        result.loanDetails.requiresInsurance
+          ? ` et une prime SCHL de ${formatCurrency(result.loanDetails.insurancePremiumAmount)}`
+          : ""
+      }.`
+    : `${formatCurrency(result.regularPayment)} ${getMortgagePaymentUnitLabel(result.settings.paymentFrequency)} sur un prêt de ${formatCurrency(result.loanDetails.principalAmount)}.`;
 
   if (quickStatsTarget) {
     quickStatsTarget.innerHTML = [
@@ -4035,12 +4110,30 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
   if (summaryCardsTarget) {
     summaryCardsTarget.innerHTML = [
       {
-        label: "Paiement hypothécaire",
-        value: formatCurrency(result.regularPayment),
+        label: "Prix d'achat",
+        value: result.loanDetails.inputMode === "purchase_price" ? formatCurrency(result.loanDetails.purchasePrice) : "Mode prêt direct",
       },
       {
-        label: "Autres frais / mois",
-        value: formatCurrency(result.carryingCosts.monthlyExtras),
+        label: "Mise de fonds",
+        value: result.loanDetails.inputMode === "purchase_price" ? formatCurrency(result.loanDetails.downPaymentAmount) : "Mode prêt direct",
+      },
+      {
+        label: "Prêt avant assurance",
+        value: result.loanDetails.inputMode === "purchase_price"
+          ? formatCurrency(result.loanDetails.loanBeforeInsurance)
+          : formatCurrency(result.loanDetails.principalAmount),
+      },
+      {
+        label: "Prime SCHL",
+        value: result.loanDetails.requiresInsurance ? formatCurrency(result.loanDetails.insurancePremiumAmount) : formatCurrency(0),
+      },
+      {
+        label: "Prêt requis",
+        value: formatCurrency(result.loanDetails.principalAmount),
+      },
+      {
+        label: "Paiement régulier",
+        value: formatCurrency(result.regularPayment),
       },
       {
         label: "Maison tout inclus / mois",
@@ -4078,6 +4171,31 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
 
   if (overviewTarget) {
     const overviewRows = [
+      {
+        label: "Prix d'achat",
+        term: result.loanDetails.purchasePrice ? formatCurrency(result.loanDetails.purchasePrice) : "-",
+        amortization: result.loanDetails.purchasePrice ? formatCurrency(result.loanDetails.purchasePrice) : "-",
+      },
+      {
+        label: "Mise de fonds",
+        term: result.loanDetails.inputMode === "purchase_price" ? formatCurrency(result.loanDetails.downPaymentAmount) : "-",
+        amortization: result.loanDetails.inputMode === "purchase_price" ? formatCurrency(result.loanDetails.downPaymentAmount) : "-",
+      },
+      {
+        label: "Prêt avant assurance",
+        term: result.loanDetails.inputMode === "purchase_price" ? formatCurrency(result.loanDetails.loanBeforeInsurance) : formatCurrency(result.loanDetails.principalAmount),
+        amortization: result.loanDetails.inputMode === "purchase_price" ? formatCurrency(result.loanDetails.loanBeforeInsurance) : formatCurrency(result.loanDetails.principalAmount),
+      },
+      {
+        label: "Prime SCHL",
+        term: result.loanDetails.requiresInsurance ? formatCurrency(result.loanDetails.insurancePremiumAmount) : formatCurrency(0),
+        amortization: result.loanDetails.requiresInsurance ? formatCurrency(result.loanDetails.insurancePremiumAmount) : formatCurrency(0),
+      },
+      {
+        label: "Prêt de départ",
+        term: formatCurrency(result.loanDetails.principalAmount),
+        amortization: formatCurrency(result.loanDetails.principalAmount),
+      },
       {
         label: "Nombre de versements",
         term: formatInteger(result.termTotals.paymentCount),
@@ -4125,11 +4243,27 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
 
   if (narrativeTarget) {
     const narrativeItems = [
+      result.loanDetails.inputMode === "purchase_price"
+        ? `Pour une propriété de ${formatCurrency(result.loanDetails.purchasePrice)}, la mise de fonds utilisée est de ${formatCurrency(
+            result.loanDetails.downPaymentAmount
+          )} (${formatPercent(result.loanDetails.downPaymentPercent, 2)}), ce qui laisse un prêt de base de ${formatCurrency(
+            result.loanDetails.loanBeforeInsurance
+          )}.`
+        : `Le scénario utilise un prêt saisi directement de ${formatCurrency(result.loanDetails.principalAmount)}.`,
+      result.loanDetails.requiresInsurance
+        ? `Comme la mise de fonds est sous 20 %, une prime SCHL de ${formatCurrency(
+            result.loanDetails.insurancePremiumAmount
+          )} est ajoutée au prêt, pour un total financé de ${formatCurrency(result.loanDetails.principalAmount)}.`
+        : "Aucune prime SCHL n'est ajoutée au prêt dans ce scénario.",
       `Au cours de la période d'amortissement de ${result.requestedDurationLabel}, vous auriez ${result.totals.paymentCount} versement${result.totals.paymentCount > 1 ? "s" : ""} ${getMortgageFrequencyLabelForSentence(result.settings.paymentFrequency)} de ${formatCurrency(result.regularPayment)}.`,
       `Sur l'amortissement complet, vous paieriez ${formatCurrency(result.totals.principal)} en capital et ${formatCurrency(result.totals.interest)} en intérêts, pour un coût total de ${formatCurrency(result.totals.totalPaid)}.`,
       `Au cours du terme de ${formatInteger(result.settings.termYears)} an${result.settings.termYears > 1 ? "s" : ""}, vous effectueriez ${result.termTotals.paymentCount} versement${result.termTotals.paymentCount > 1 ? "s" : ""} pour ${formatCurrency(result.termTotals.totalPaid)} au total.`,
       `À la fin du terme, le solde estimé serait de ${formatCurrency(result.endOfTermBalance)}.`,
-      `Avec les frais ajoutés, la maison reviendrait à environ ${formatCurrency(result.carryingCosts.totalMonthlyHousingCost)} par mois, soit ${formatCurrency(result.carryingCosts.totalAnnualHousingCost)} par année.`,
+      result.settings.paymentFrequency === "monthly"
+        ? `Avec les frais ajoutés, la maison reviendrait à environ ${formatCurrency(result.carryingCosts.totalMonthlyHousingCost)} par mois, soit ${formatCurrency(result.carryingCosts.totalAnnualHousingCost)} par année.`
+        : `Avec les frais ajoutés, la maison reviendrait à environ ${formatCurrency(result.carryingCosts.totalMonthlyHousingCost)} par mois, soit ${formatCurrency(result.carryingCosts.totalAnnualHousingCost)} par année, après mensualisation des versements ${getMortgageFrequencyLabelForSentence(
+            result.settings.paymentFrequency
+          )}.`,
       result.totals.prepayment > 0
         ? `Avec les remboursements anticipés, vous économiseriez ${formatCurrency(result.interestSaved)} d'intérêts et environ ${result.timeSavedLabel.toLowerCase()}.`
         : "Aucun remboursement anticipé n'est appliqué dans ce scénario.",
@@ -4177,15 +4311,21 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
 
 function calculateMortgageScenario(rawSettings) {
   const settings = sanitizeMortgageTool(rawSettings);
+  const loanDetails = resolveMortgageBaseAmounts(settings);
   const totalMonths = settings.amortizationYears * 12 + settings.amortizationMonths;
-  if (settings.principal <= 0 || totalMonths <= 0) {
-    return { isValid: false, settings };
+  if (!loanDetails.isValid || loanDetails.principalAmount <= 0 || totalMonths <= 0) {
+    return {
+      isValid: false,
+      settings,
+      loanDetails,
+      errorMessage: loanDetails.errorMessage || "Ajoute un prêt valide et une période d'amortissement.",
+    };
   }
 
   const frequency = getMortgageFrequencyDefinition(settings.paymentFrequency);
   const periodicRate = getMortgagePeriodicRate(settings.interestRate / 100, frequency.periodsPerYear);
   const regularPayment = calculateMortgageRegularPayment(
-    settings.principal,
+    loanDetails.principalAmount,
     settings.interestRate / 100,
     totalMonths,
     settings.paymentFrequency
@@ -4203,15 +4343,19 @@ function calculateMortgageScenario(rawSettings) {
   const termTotals = summarizeMortgageSchedule(termSchedule);
   const baselineTotals = summarizeMortgageSchedule(baselineSchedule);
   const annualSummary = buildMortgageAnnualSummary(schedule, frequency.periodsPerYear);
-  const endOfTermBalance = termSchedule.length ? getLast(termSchedule).balance : settings.principal;
+  const endOfTermBalance = termSchedule.length ? getLast(termSchedule).balance : loanDetails.principalAmount;
   const interestSaved = Math.max(0, roundCurrency(baselineTotals.interest - totals.interest));
   const savedPayments = Math.max(0, baselineTotals.paymentCount - totals.paymentCount);
   const timeSavedLabel = formatMortgageDurationFromPayments(savedPayments, frequency.periodsPerYear);
-  const carryingCosts = buildMortgageCarryingCosts(settings, regularPayment);
+  const carryingCosts = buildMortgageCarryingCosts(settings, regularPayment, frequency.periodsPerYear);
 
   return {
     isValid: true,
-    settings,
+    settings: {
+      ...settings,
+      principal: loanDetails.principalAmount,
+    },
+    loanDetails,
     periodicRate,
     regularPayment,
     schedule,
@@ -4227,18 +4371,210 @@ function calculateMortgageScenario(rawSettings) {
   };
 }
 
+function resolveMortgageBaseAmounts(rawSettings) {
+  const settings = sanitizeMortgageTool(rawSettings);
+  if (settings.inputMode !== "purchase_price") {
+    const directPrincipal = Math.max(0, parseAmount(settings.principal));
+    return {
+      isValid: directPrincipal > 0,
+      inputMode: settings.inputMode,
+      purchasePrice: 0,
+      downPaymentAmount: 0,
+      downPaymentPercent: 0,
+      minimumDownPayment: 0,
+      loanBeforeInsurance: directPrincipal,
+      insurancePremiumRate: 0,
+      insurancePremiumAmount: 0,
+      principalAmount: directPrincipal,
+      requiresInsurance: false,
+      errorMessage: directPrincipal > 0 ? "" : "Ajoute un montant de prêt supérieur à zéro.",
+    };
+  }
+
+  const purchasePrice = Math.max(0, parseAmount(settings.purchasePrice));
+  if (purchasePrice <= 0) {
+    return {
+      isValid: false,
+      inputMode: settings.inputMode,
+      purchasePrice,
+      downPaymentAmount: 0,
+      downPaymentPercent: 0,
+      minimumDownPayment: 0,
+      loanBeforeInsurance: 0,
+      insurancePremiumRate: 0,
+      insurancePremiumAmount: 0,
+      principalAmount: 0,
+      requiresInsurance: false,
+      errorMessage: "Ajoute un prix d'achat supérieur à zéro.",
+    };
+  }
+
+  const downPaymentAmount = settings.downPaymentType === "amount"
+    ? roundCurrency(Math.max(0, parseAmount(settings.downPaymentValue)))
+    : roundCurrency(purchasePrice * (Math.max(0, parseAmount(settings.downPaymentValue)) / 100));
+  const downPaymentPercent = purchasePrice ? (downPaymentAmount / purchasePrice) * 100 : 0;
+  const minimumDownPayment = getMortgageMinimumDownPayment(purchasePrice);
+
+  if (downPaymentAmount <= 0) {
+    return {
+      isValid: false,
+      inputMode: settings.inputMode,
+      purchasePrice,
+      downPaymentAmount,
+      downPaymentPercent,
+      minimumDownPayment,
+      loanBeforeInsurance: 0,
+      insurancePremiumRate: 0,
+      insurancePremiumAmount: 0,
+      principalAmount: 0,
+      requiresInsurance: false,
+      errorMessage: "Ajoute une mise de fonds valide.",
+    };
+  }
+
+  if (downPaymentAmount >= purchasePrice) {
+    return {
+      isValid: false,
+      inputMode: settings.inputMode,
+      purchasePrice,
+      downPaymentAmount,
+      downPaymentPercent,
+      minimumDownPayment,
+      loanBeforeInsurance: 0,
+      insurancePremiumRate: 0,
+      insurancePremiumAmount: 0,
+      principalAmount: 0,
+      requiresInsurance: false,
+      errorMessage: "La mise de fonds doit rester inférieure au prix d'achat.",
+    };
+  }
+
+  if (purchasePrice >= 1500000 && downPaymentPercent < 20) {
+    return {
+      isValid: false,
+      inputMode: settings.inputMode,
+      purchasePrice,
+      downPaymentAmount,
+      downPaymentPercent,
+      minimumDownPayment,
+      loanBeforeInsurance: 0,
+      insurancePremiumRate: 0,
+      insurancePremiumAmount: 0,
+      principalAmount: 0,
+      requiresInsurance: false,
+      errorMessage: "Pour 1 500 000 $ et plus, la mise de fonds minimale est de 20 %.",
+    };
+  }
+
+  if (downPaymentAmount + 0.01 < minimumDownPayment) {
+    return {
+      isValid: false,
+      inputMode: settings.inputMode,
+      purchasePrice,
+      downPaymentAmount,
+      downPaymentPercent,
+      minimumDownPayment,
+      loanBeforeInsurance: 0,
+      insurancePremiumRate: 0,
+      insurancePremiumAmount: 0,
+      principalAmount: 0,
+      requiresInsurance: false,
+      errorMessage: `La mise de fonds minimale requise est ${formatCurrency(minimumDownPayment)}.`,
+    };
+  }
+
+  const loanBeforeInsurance = roundCurrency(Math.max(purchasePrice - downPaymentAmount, 0));
+  const requiresInsurance = downPaymentPercent < 20;
+  const insurancePremiumRate = requiresInsurance
+    ? getMortgageInsurancePremiumRate(loanBeforeInsurance / purchasePrice)
+    : 0;
+  if (requiresInsurance && insurancePremiumRate <= 0) {
+    return {
+      isValid: false,
+      inputMode: settings.inputMode,
+      purchasePrice,
+      downPaymentAmount,
+      downPaymentPercent,
+      minimumDownPayment,
+      loanBeforeInsurance,
+      insurancePremiumRate: 0,
+      insurancePremiumAmount: 0,
+      principalAmount: 0,
+      requiresInsurance,
+      errorMessage: "Le rapport prêt-valeur dépasse la fourchette assurée par la SCHL.",
+    };
+  }
+
+  const insurancePremiumAmount = requiresInsurance
+    ? roundCurrency(loanBeforeInsurance * insurancePremiumRate)
+    : 0;
+  const principalAmount = roundCurrency(loanBeforeInsurance + insurancePremiumAmount);
+  return {
+    isValid: principalAmount > 0,
+    inputMode: settings.inputMode,
+    purchasePrice,
+    downPaymentAmount,
+    downPaymentPercent,
+    minimumDownPayment,
+    loanBeforeInsurance,
+    insurancePremiumRate,
+    insurancePremiumAmount,
+    principalAmount,
+    requiresInsurance,
+    errorMessage: principalAmount > 0 ? "" : "Le prêt calculé doit être supérieur à zéro.",
+  };
+}
+
+function getMortgageMinimumDownPayment(purchasePrice) {
+  if (purchasePrice <= 500000) {
+    return roundCurrency(purchasePrice * 0.05);
+  }
+  if (purchasePrice < 1500000) {
+    return roundCurrency(25000 + (purchasePrice - 500000) * 0.1);
+  }
+  return roundCurrency(purchasePrice * 0.2);
+}
+
+function getMortgageInsurancePremiumRate(loanToValueRatio) {
+  if (loanToValueRatio <= 0.65) {
+    return 0.006;
+  }
+  if (loanToValueRatio <= 0.75) {
+    return 0.017;
+  }
+  if (loanToValueRatio <= 0.8) {
+    return 0.024;
+  }
+  if (loanToValueRatio <= 0.85) {
+    return 0.028;
+  }
+  if (loanToValueRatio <= 0.9) {
+    return 0.031;
+  }
+  if (loanToValueRatio <= 0.95) {
+    return 0.04;
+  }
+  return 0;
+}
+
 function buildMortgageSchedule(settings) {
-  const principal = Math.max(0, parseAmount(settings.principal));
+  const normalized = sanitizeMortgageTool(settings);
+  const loanDetails = resolveMortgageBaseAmounts(normalized);
+  if (!loanDetails.isValid || loanDetails.principalAmount <= 0) {
+    return [];
+  }
+
+  const principal = Math.max(0, parseAmount(loanDetails.principalAmount));
   const totalMonths = settings.amortizationYears * 12 + settings.amortizationMonths;
-  const frequency = getMortgageFrequencyDefinition(settings.paymentFrequency);
-  const ratePerPayment = getMortgagePeriodicRate(settings.interestRate / 100, frequency.periodsPerYear);
+  const frequency = getMortgageFrequencyDefinition(normalized.paymentFrequency);
+  const ratePerPayment = getMortgagePeriodicRate(normalized.interestRate / 100, frequency.periodsPerYear);
   const regularPayment = calculateMortgageRegularPayment(
     principal,
-    settings.interestRate / 100,
+    normalized.interestRate / 100,
     totalMonths,
-    settings.paymentFrequency
+    normalized.paymentFrequency
   );
-  const plannedPrepayment = Math.max(0, parseAmount(settings.prepaymentAmount));
+  const plannedPrepayment = Math.max(0, parseAmount(normalized.prepaymentAmount));
   const schedule = [];
   let balance = principal;
   let guard = 0;
@@ -4249,8 +4585,8 @@ function buildMortgageSchedule(settings) {
     const desiredPrepayment = getMortgagePrepaymentForNumber(
       guard,
       plannedPrepayment,
-      settings.prepaymentFrequency,
-      settings.prepaymentStartPayment,
+      normalized.prepaymentFrequency,
+      normalized.prepaymentStartPayment,
       frequency.periodsPerYear
     );
     const scheduledPrincipal = Math.max(0, regularPayment - interest);
@@ -4310,12 +4646,15 @@ function buildMortgageAnnualSummary(schedule, periodsPerYear) {
   }, []);
 }
 
-function buildMortgageCarryingCosts(settings, regularPayment) {
+function buildMortgageCarryingCosts(settings, regularPayment, periodsPerYear) {
+  const annualMortgagePayments = roundCurrency(regularPayment * periodsPerYear);
+  const monthlyMortgageEquivalent = monthlyFromAnnual(annualMortgagePayments);
+  const frequencyLabel = getMortgageFrequencyDefinition(settings.paymentFrequency).label.toLowerCase();
   const breakdown = [
     {
-      label: "Versement hypothécaire",
-      monthly: roundCurrency(regularPayment),
-      annual: annualizeMonthly(regularPayment),
+      label: periodsPerYear === 12 ? "Versement hypothécaire" : `Versements hypothécaires (${frequencyLabel} mensualisés)`,
+      monthly: monthlyMortgageEquivalent,
+      annual: annualMortgagePayments,
     },
     {
       label: "Taxes municipales",
@@ -4376,6 +4715,8 @@ function buildMortgageCarryingCosts(settings, regularPayment) {
   const totalAnnualHousingCost = roundCurrency(sumBy(breakdown, (item) => item.annual));
   return {
     breakdown,
+    monthlyMortgageEquivalent,
+    annualMortgagePayments,
     monthlyExtras,
     totalMonthlyHousingCost,
     totalAnnualHousingCost,
@@ -4460,11 +4801,17 @@ function sanitizeMortgageTool(input) {
     return { ...DEFAULT_MORTGAGE_TOOL };
   }
 
+  const inputMode = textValue(input.inputMode);
   const paymentFrequency = textValue(input.paymentFrequency);
   const prepaymentFrequency = textValue(input.prepaymentFrequency);
+  const downPaymentType = textValue(input.downPaymentType);
   return {
     scenarioId: textValue(input.scenarioId),
     scenarioName: textValue(input.scenarioName),
+    inputMode: inputMode === "purchase_price" ? "purchase_price" : DEFAULT_MORTGAGE_TOOL.inputMode,
+    purchasePrice: Math.max(0, parseAmount(input.purchasePrice ?? DEFAULT_MORTGAGE_TOOL.purchasePrice)),
+    downPaymentValue: Math.max(0, parseAmount(input.downPaymentValue ?? DEFAULT_MORTGAGE_TOOL.downPaymentValue)),
+    downPaymentType: downPaymentType === "amount" ? "amount" : DEFAULT_MORTGAGE_TOOL.downPaymentType,
     principal: Math.max(0, parseAmount(input.principal ?? DEFAULT_MORTGAGE_TOOL.principal)),
     interestRate: Math.max(0, parseAmount(input.interestRate ?? DEFAULT_MORTGAGE_TOOL.interestRate)),
     amortizationYears: clampInteger(

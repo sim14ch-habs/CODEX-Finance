@@ -380,7 +380,29 @@
             <form id="mortgageForm" class="planner-form mortgage-form" novalidate>
               <input name="scenarioId" type="hidden">
               <label>
-                Montant du prêt hypothécaire
+                Mode de calcul
+                <select name="inputMode">
+                  <option value="mortgage_amount">Montant du prêt seulement</option>
+                  <option value="purchase_price">Prix d'achat + mise de fonds</option>
+                </select>
+              </label>
+              <label id="mortgagePurchasePriceField" hidden>
+                Prix d'achat de la propriété
+                <input name="purchasePrice" type="number" min="0" step="0.01" placeholder="450000">
+              </label>
+              <label id="mortgageDownPaymentValueField" hidden>
+                Mise de fonds
+                <input name="downPaymentValue" type="number" min="0" step="0.01" placeholder="10">
+              </label>
+              <label id="mortgageDownPaymentTypeField" hidden>
+                Type de mise de fonds
+                <select name="downPaymentType">
+                  <option value="percent">Pourcentage</option>
+                  <option value="amount">Montant</option>
+                </select>
+              </label>
+              <label>
+                <span id="mortgagePrincipalLabel">Montant du prêt hypothécaire</span>
                 <input name="principal" type="number" min="0" step="0.01" placeholder="100000">
               </label>
               <label>
@@ -450,6 +472,9 @@
                 À partir du versement
                 <input name="prepaymentStartPayment" type="number" min="1" step="1" placeholder="1">
               </label>
+              <p id="mortgageLoanHelper" class="helper-text form-helper mortgage-helper">
+                Le prêt peut être entré directement, ou calculé à partir du prix d'achat et de la mise de fonds.
+              </p>
               <div class="mortgage-form-span">
                 <strong>Coût de possession tout inclus</strong>
                 <p>Ajoute les frais annuels et mensuels du logement pour estimer combien la maison coûterait réellement chaque mois.</p>
