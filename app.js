@@ -61,6 +61,52 @@ const MORTGAGE_PREPAYMENT_FREQUENCY_LABELS = {
   yearly: "À chaque année",
   regular: "Même que vos versements",
 };
+const MORTGAGE_RULES = {
+  insuredMaxLendingValue: 1500000,
+  insurancePremiumTaxByProvince: {
+    QC: 0.09,
+    ON: 0.08,
+    OTHER: 0,
+  },
+  transferDuty: {
+    QC: {
+      brackets: [
+        { upTo: 62900, rate: 0.005 },
+        { upTo: 315000, rate: 0.01 },
+        { upTo: Infinity, rate: 0.015 },
+      ],
+      municipalOverrides: {
+        montreal: [
+          { upTo: 62900, rate: 0.005 },
+          { upTo: 315000, rate: 0.01 },
+          { upTo: 552300, rate: 0.015 },
+          { upTo: 1104700, rate: 0.02 },
+          { upTo: 2136500, rate: 0.025 },
+          { upTo: Infinity, rate: 0.035 },
+        ],
+        "montréal": [
+          { upTo: 62900, rate: 0.005 },
+          { upTo: 315000, rate: 0.01 },
+          { upTo: 552300, rate: 0.015 },
+          { upTo: 1104700, rate: 0.02 },
+          { upTo: 2136500, rate: 0.025 },
+          { upTo: Infinity, rate: 0.035 },
+        ],
+      },
+    },
+  },
+  closingCostEstimates: {
+    inspectionCost: 750,
+    appraisalCost: 500,
+    legalNotaryCost: 1800,
+    certificateOrSurveyCost: 0,
+    prepaidAdjustments: 1200,
+    homeInsuranceUpfront: 900,
+    titleInsuranceCost: 350,
+    landRegistrationCost: 350,
+    extraMunicipalClosingCosts: 0,
+  },
+};
 const DEFAULT_MORTGAGE_TOOL = {
   scenarioId: "",
   scenarioName: "",
@@ -68,6 +114,24 @@ const DEFAULT_MORTGAGE_TOOL = {
   purchasePrice: 0,
   downPaymentValue: 20,
   downPaymentType: "percent",
+  province: "QC",
+  municipality: "Québec",
+  availableCash: 0,
+  targetCashReserveAfterClosing: 0,
+  renovationsCost: 0,
+  renovationsMode: "none",
+  separateLoanInterestRate: 8.99,
+  separateLoanAmortizationYears: 5,
+  inspectionCost: 0,
+  appraisalCost: 0,
+  legalNotaryCost: 0,
+  certificateOrSurveyCost: 0,
+  prepaidAdjustments: 0,
+  homeInsuranceUpfront: 0,
+  titleInsuranceCost: 0,
+  landRegistrationCost: 0,
+  extraMunicipalClosingCosts: 0,
+  marketValueOverride: 0,
   principal: 100000,
   interestRate: 5,
   amortizationYears: 25,
@@ -3680,6 +3744,24 @@ function readMortgageForm(form) {
     purchasePrice: form.elements.purchasePrice.value,
     downPaymentValue: form.elements.downPaymentValue.value,
     downPaymentType: form.elements.downPaymentType.value,
+    province: form.elements.province.value,
+    municipality: form.elements.municipality.value,
+    availableCash: form.elements.availableCash.value,
+    targetCashReserveAfterClosing: form.elements.targetCashReserveAfterClosing.value,
+    renovationsCost: form.elements.renovationsCost.value,
+    renovationsMode: form.elements.renovationsMode.value,
+    separateLoanInterestRate: form.elements.separateLoanInterestRate.value,
+    separateLoanAmortizationYears: form.elements.separateLoanAmortizationYears.value,
+    inspectionCost: form.elements.inspectionCost.value,
+    appraisalCost: form.elements.appraisalCost.value,
+    legalNotaryCost: form.elements.legalNotaryCost.value,
+    certificateOrSurveyCost: form.elements.certificateOrSurveyCost.value,
+    prepaidAdjustments: form.elements.prepaidAdjustments.value,
+    homeInsuranceUpfront: form.elements.homeInsuranceUpfront.value,
+    titleInsuranceCost: form.elements.titleInsuranceCost.value,
+    landRegistrationCost: form.elements.landRegistrationCost.value,
+    extraMunicipalClosingCosts: form.elements.extraMunicipalClosingCosts.value,
+    marketValueOverride: form.elements.marketValueOverride.value,
     principal: form.elements.principal.value,
     interestRate: form.elements.interestRate.value,
     amortizationYears: form.elements.amortizationYears.value,
@@ -3725,6 +3807,24 @@ function populateMortgageForm() {
   form.elements.downPaymentValue.value =
     mortgage.downPaymentValue || mortgage.downPaymentValue === 0 ? String(mortgage.downPaymentValue) : "";
   form.elements.downPaymentType.value = mortgage.downPaymentType;
+  form.elements.province.value = mortgage.province;
+  form.elements.municipality.value = mortgage.municipality;
+  form.elements.availableCash.value = String(mortgage.availableCash || 0);
+  form.elements.targetCashReserveAfterClosing.value = String(mortgage.targetCashReserveAfterClosing || 0);
+  form.elements.renovationsCost.value = String(mortgage.renovationsCost || 0);
+  form.elements.renovationsMode.value = mortgage.renovationsMode;
+  form.elements.separateLoanInterestRate.value = String(mortgage.separateLoanInterestRate || 0);
+  form.elements.separateLoanAmortizationYears.value = String(mortgage.separateLoanAmortizationYears || 0);
+  form.elements.inspectionCost.value = String(mortgage.inspectionCost || 0);
+  form.elements.appraisalCost.value = String(mortgage.appraisalCost || 0);
+  form.elements.legalNotaryCost.value = String(mortgage.legalNotaryCost || 0);
+  form.elements.certificateOrSurveyCost.value = String(mortgage.certificateOrSurveyCost || 0);
+  form.elements.prepaidAdjustments.value = String(mortgage.prepaidAdjustments || 0);
+  form.elements.homeInsuranceUpfront.value = String(mortgage.homeInsuranceUpfront || 0);
+  form.elements.titleInsuranceCost.value = String(mortgage.titleInsuranceCost || 0);
+  form.elements.landRegistrationCost.value = String(mortgage.landRegistrationCost || 0);
+  form.elements.extraMunicipalClosingCosts.value = String(mortgage.extraMunicipalClosingCosts || 0);
+  form.elements.marketValueOverride.value = String(mortgage.marketValueOverride || 0);
   form.elements.principal.value = mortgage.principal || mortgage.principal === 0 ? String(mortgage.principal) : "";
   form.elements.interestRate.value = mortgage.interestRate || mortgage.interestRate === 0 ? String(mortgage.interestRate) : "";
   form.elements.amortizationYears.value =
@@ -3778,12 +3878,14 @@ function syncMortgageInputModeUI(mortgage = state.mortgageTool) {
     }
 
     const insuranceText = base.requiresInsurance
-      ? `Prime SCHL ${formatPercent(base.insurancePremiumRate * 100, 2)} = ${formatCurrency(base.insurancePremiumAmount)}.`
+      ? `Prime SCHL ${formatPercent(base.insurancePremiumRate * 100, 2)} = ${formatCurrency(
+          base.insurancePremiumAmount
+        )}; taxe cash ${formatCurrency(base.insurancePremiumTaxAmount)}.`
       : "Aucune prime SCHL requise.";
     loanHelper.textContent = `Mise de fonds ${formatCurrency(base.downPaymentAmount)} (${formatPercent(
       base.downPaymentPercent,
       2
-    )}) • prêt avant assurance ${formatCurrency(base.loanBeforeInsurance)} • prêt final ${formatCurrency(
+    )}) • valeur de prêt ${formatCurrency(base.lendingValue)} • prêt avant assurance ${formatCurrency(base.loanBeforeInsurance)} • prêt final ${formatCurrency(
       base.principalAmount
     )} • ${insuranceText}`;
     return;
@@ -4011,6 +4113,7 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
   const quickStatsTarget = $("mortgageQuickStats");
   const summaryCardsTarget = $("mortgageSummaryCards");
   const carryingCostTarget = $("mortgageCarryingCostTable");
+  const closingCostTarget = $("mortgageClosingCostTable");
   const overviewTarget = $("mortgageOverviewTable");
   const narrativeTarget = $("mortgageNarrative");
   const annualTarget = $("mortgageAnnualTable");
@@ -4034,6 +4137,13 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
       carryingCostTarget.innerHTML = `
         <tr>
           <td colspan="3">Ajoute des frais de logement pour afficher le coût mensuel tout inclus.</td>
+        </tr>
+      `;
+    }
+    if (closingCostTarget) {
+      closingCostTarget.innerHTML = `
+        <tr>
+          <td colspan="3">Passe en mode prix d'achat pour estimer le cash requis à la clôture.</td>
         </tr>
       `;
     }
@@ -4128,8 +4238,24 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
         value: result.loanDetails.requiresInsurance ? formatCurrency(result.loanDetails.insurancePremiumAmount) : formatCurrency(0),
       },
       {
+        label: "Taxe cash sur prime",
+        value: formatCurrency(result.loanDetails.insurancePremiumTaxAmount || 0),
+      },
+      {
         label: "Prêt requis",
         value: formatCurrency(result.loanDetails.principalAmount),
+      },
+      {
+        label: "Droit de mutation",
+        value: formatCurrency(result.closingAnalysis.transferDuty.amount),
+      },
+      {
+        label: "Cash requis à la clôture",
+        value: formatCurrency(result.closingAnalysis.totalCashRequiredAtClose),
+      },
+      {
+        label: "Cash restant après rénos",
+        value: formatCurrency(result.closingAnalysis.cashLeftAfterImmediateRenovations),
       },
       {
         label: "Paiement régulier",
@@ -4169,6 +4295,43 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
       .join("");
   }
 
+  if (closingCostTarget) {
+    const closingRows = [
+      {
+        label: "Mise de fonds",
+        amount: result.loanDetails.downPaymentAmount,
+        source: "cash",
+      },
+      ...result.closingAnalysis.lines,
+      {
+        label: "Rénovations cash immédiates",
+        amount: result.closingAnalysis.cashRenovationOutlay,
+        source: result.closingAnalysis.cashRenovationOutlay > 0 ? "cash après clôture" : "non applicable",
+      },
+      {
+        label: "Total cash requis à la clôture",
+        amount: result.closingAnalysis.totalCashRequiredAtClose,
+        source: "sans rénovations cash après clôture",
+      },
+      {
+        label: "Cash restant après tout",
+        amount: result.closingAnalysis.cashLeftAfterImmediateRenovations,
+        source: result.closingAnalysis.isCashFeasible ? "faisable" : "insuffisant",
+      },
+    ];
+    closingCostTarget.innerHTML = closingRows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.label)}</td>
+            <td>${escapeHtml(formatCurrency(row.amount))}</td>
+            <td>${escapeHtml(row.source)}</td>
+          </tr>
+        `
+      )
+      .join("");
+  }
+
   if (overviewTarget) {
     const overviewRows = [
       {
@@ -4192,9 +4355,39 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
         amortization: result.loanDetails.requiresInsurance ? formatCurrency(result.loanDetails.insurancePremiumAmount) : formatCurrency(0),
       },
       {
+        label: "Taxe sur prime SCHL",
+        term: formatCurrency(result.loanDetails.insurancePremiumTaxAmount || 0),
+        amortization: "Cash à la clôture",
+      },
+      {
         label: "Prêt de départ",
         term: formatCurrency(result.loanDetails.principalAmount),
         amortization: formatCurrency(result.loanDetails.principalAmount),
+      },
+      {
+        label: "Droit de mutation",
+        term: formatCurrency(result.closingAnalysis.transferDuty.amount),
+        amortization: result.closingAnalysis.transferDuty.label,
+      },
+      {
+        label: "Frais de clôture hors mise de fonds",
+        term: formatCurrency(result.closingAnalysis.closingCostsExcludingDownPayment),
+        amortization: "Inclut taxe prime, mutation et frais saisis / estimés",
+      },
+      {
+        label: "Cash requis à la clôture",
+        term: formatCurrency(result.closingAnalysis.totalCashRequiredAtClose),
+        amortization: "Mise de fonds + frais de clôture",
+      },
+      {
+        label: "Cash restant après clôture",
+        term: formatCurrency(result.closingAnalysis.cashLeftAfterClose),
+        amortization: result.closingAnalysis.isCashFeasible ? "Faisable selon le cash entré" : "Cash insuffisant",
+      },
+      {
+        label: "Cash restant après rénovations",
+        term: formatCurrency(result.closingAnalysis.cashLeftAfterImmediateRenovations),
+        amortization: result.closingAnalysis.meetsReserve ? "Réserve cible respectée" : "Sous la réserve cible",
       },
       {
         label: "Nombre de versements",
@@ -4253,8 +4446,21 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
       result.loanDetails.requiresInsurance
         ? `Comme la mise de fonds est sous 20 %, une prime SCHL de ${formatCurrency(
             result.loanDetails.insurancePremiumAmount
-          )} est ajoutée au prêt, pour un total financé de ${formatCurrency(result.loanDetails.principalAmount)}.`
+          )} est ajoutée au prêt, pour un total financé de ${formatCurrency(
+            result.loanDetails.principalAmount
+          )}; sa taxe de ${formatCurrency(result.loanDetails.insurancePremiumTaxAmount || 0)} reste payable en cash à la clôture.`
         : "Aucune prime SCHL n'est ajoutée au prêt dans ce scénario.",
+      `Le droit de mutation est estimé à ${formatCurrency(result.closingAnalysis.transferDuty.amount)} avec ${result.closingAnalysis.transferDuty.label.toLowerCase()}.`,
+      `Cash requis à la clôture: ${formatCurrency(result.closingAnalysis.totalCashRequiredAtClose)}; cash restant après clôture: ${formatCurrency(
+        result.closingAnalysis.cashLeftAfterClose
+      )}.`,
+      result.renovationSummary.note,
+      result.closingAnalysis.cashLeftAfterImmediateRenovations < 0
+        ? `Attention: il manquerait ${formatCurrency(Math.abs(result.closingAnalysis.cashLeftAfterImmediateRenovations))} après les rénovations immédiates.`
+        : `Après les rénovations immédiates, il resterait ${formatCurrency(result.closingAnalysis.cashLeftAfterImmediateRenovations)} en cash.`,
+      result.closingAnalysis.reserveTarget > 0 && !result.closingAnalysis.meetsReserve
+        ? `La réserve cible de ${formatCurrency(result.closingAnalysis.reserveTarget)} n'est pas respectée; baisse la mise de fonds ou finance une partie des rénovations.`
+        : `La réserve cible est ${result.closingAnalysis.reserveTarget > 0 ? "respectée" : "non définie"} dans ce scénario.`,
       `Au cours de la période d'amortissement de ${result.requestedDurationLabel}, vous auriez ${result.totals.paymentCount} versement${result.totals.paymentCount > 1 ? "s" : ""} ${getMortgageFrequencyLabelForSentence(result.settings.paymentFrequency)} de ${formatCurrency(result.regularPayment)}.`,
       `Sur l'amortissement complet, vous paieriez ${formatCurrency(result.totals.principal)} en capital et ${formatCurrency(result.totals.interest)} en intérêts, pour un coût total de ${formatCurrency(result.totals.totalPaid)}.`,
       `Au cours du terme de ${formatInteger(result.settings.termYears)} an${result.settings.termYears > 1 ? "s" : ""}, vous effectueriez ${result.termTotals.paymentCount} versement${result.termTotals.paymentCount > 1 ? "s" : ""} pour ${formatCurrency(result.termTotals.totalPaid)} au total.`,
@@ -4347,7 +4553,14 @@ function calculateMortgageScenario(rawSettings) {
   const interestSaved = Math.max(0, roundCurrency(baselineTotals.interest - totals.interest));
   const savedPayments = Math.max(0, baselineTotals.paymentCount - totals.paymentCount);
   const timeSavedLabel = formatMortgageDurationFromPayments(savedPayments, frequency.periodsPerYear);
-  const carryingCosts = buildMortgageCarryingCosts(settings, regularPayment, frequency.periodsPerYear);
+  const closingAnalysis = calculateClosingAnalysis(settings, loanDetails);
+  const renovationSummary = getRenovationFinancingSummary(settings, loanDetails);
+  const carryingCosts = buildMortgageCarryingCosts(
+    settings,
+    regularPayment,
+    frequency.periodsPerYear,
+    renovationSummary.monthlyPayment
+  );
 
   return {
     isValid: true,
@@ -4367,6 +4580,8 @@ function calculateMortgageScenario(rawSettings) {
     timeSavedLabel,
     actualDurationLabel: formatMortgageDurationFromPayments(totals.paymentCount, frequency.periodsPerYear),
     requestedDurationLabel: formatMortgageDurationFromMonths(totalMonths),
+    closingAnalysis,
+    renovationSummary,
     carryingCosts,
   };
 }
@@ -4385,8 +4600,14 @@ function resolveMortgageBaseAmounts(rawSettings) {
       loanBeforeInsurance: directPrincipal,
       insurancePremiumRate: 0,
       insurancePremiumAmount: 0,
+      insurancePremiumTaxRate: 0,
+      insurancePremiumTaxAmount: 0,
       principalAmount: directPrincipal,
       requiresInsurance: false,
+      lendingValue: directPrincipal,
+      asIsValue: directPrincipal,
+      asImprovedValue: directPrincipal,
+      improvementAdvanceType: "none",
       errorMessage: directPrincipal > 0 ? "" : "Ajoute un montant de prêt supérieur à zéro.",
     };
   }
@@ -4403,17 +4624,36 @@ function resolveMortgageBaseAmounts(rawSettings) {
       loanBeforeInsurance: 0,
       insurancePremiumRate: 0,
       insurancePremiumAmount: 0,
+      insurancePremiumTaxRate: 0,
+      insurancePremiumTaxAmount: 0,
       principalAmount: 0,
       requiresInsurance: false,
+      lendingValue: 0,
+      asIsValue: purchasePrice,
+      asImprovedValue: purchasePrice,
+      improvementAdvanceType: "none",
       errorMessage: "Ajoute un prix d'achat supérieur à zéro.",
     };
   }
 
+  const usesMortgageImprovement = settings.renovationsMode === "mortgageImprovement" && settings.renovationsCost > 0;
+  const asIsValue = purchasePrice;
+  const asImprovedValue = usesMortgageImprovement
+    ? roundCurrency(purchasePrice + settings.renovationsCost)
+    : purchasePrice;
+  const lendingValue = usesMortgageImprovement
+    ? roundCurrency(Math.min(asImprovedValue, asIsValue + settings.renovationsCost))
+    : purchasePrice;
+  const improvementAdvanceType = usesMortgageImprovement
+    ? settings.renovationsCost <= asImprovedValue * 0.1
+      ? "single"
+      : "progress"
+    : "none";
   const downPaymentAmount = settings.downPaymentType === "amount"
     ? roundCurrency(Math.max(0, parseAmount(settings.downPaymentValue)))
-    : roundCurrency(purchasePrice * (Math.max(0, parseAmount(settings.downPaymentValue)) / 100));
-  const downPaymentPercent = purchasePrice ? (downPaymentAmount / purchasePrice) * 100 : 0;
-  const minimumDownPayment = getMortgageMinimumDownPayment(purchasePrice);
+    : roundCurrency(lendingValue * (Math.max(0, parseAmount(settings.downPaymentValue)) / 100));
+  const downPaymentPercent = lendingValue ? (downPaymentAmount / lendingValue) * 100 : 0;
+  const minimumDownPayment = getMortgageMinimumDownPayment(lendingValue);
 
   if (downPaymentAmount <= 0) {
     return {
@@ -4426,13 +4666,19 @@ function resolveMortgageBaseAmounts(rawSettings) {
       loanBeforeInsurance: 0,
       insurancePremiumRate: 0,
       insurancePremiumAmount: 0,
+      insurancePremiumTaxRate: 0,
+      insurancePremiumTaxAmount: 0,
       principalAmount: 0,
       requiresInsurance: false,
+      lendingValue,
+      asIsValue,
+      asImprovedValue,
+      improvementAdvanceType,
       errorMessage: "Ajoute une mise de fonds valide.",
     };
   }
 
-  if (downPaymentAmount >= purchasePrice) {
+  if (downPaymentAmount >= lendingValue) {
     return {
       isValid: false,
       inputMode: settings.inputMode,
@@ -4443,13 +4689,19 @@ function resolveMortgageBaseAmounts(rawSettings) {
       loanBeforeInsurance: 0,
       insurancePremiumRate: 0,
       insurancePremiumAmount: 0,
+      insurancePremiumTaxRate: 0,
+      insurancePremiumTaxAmount: 0,
       principalAmount: 0,
       requiresInsurance: false,
+      lendingValue,
+      asIsValue,
+      asImprovedValue,
+      improvementAdvanceType,
       errorMessage: "La mise de fonds doit rester inférieure au prix d'achat.",
     };
   }
 
-  if (purchasePrice >= 1500000 && downPaymentPercent < 20) {
+  if (lendingValue > MORTGAGE_RULES.insuredMaxLendingValue && downPaymentPercent < 20) {
     return {
       isValid: false,
       inputMode: settings.inputMode,
@@ -4460,9 +4712,15 @@ function resolveMortgageBaseAmounts(rawSettings) {
       loanBeforeInsurance: 0,
       insurancePremiumRate: 0,
       insurancePremiumAmount: 0,
+      insurancePremiumTaxRate: 0,
+      insurancePremiumTaxAmount: 0,
       principalAmount: 0,
       requiresInsurance: false,
-      errorMessage: "Pour 1 500 000 $ et plus, la mise de fonds minimale est de 20 %.",
+      lendingValue,
+      asIsValue,
+      asImprovedValue,
+      improvementAdvanceType,
+      errorMessage: "Au-dessus de 1 500 000 $ de valeur de prêt, on traite le scénario comme conventionnel: mise de fonds minimale de 20 %.",
     };
   }
 
@@ -4477,16 +4735,22 @@ function resolveMortgageBaseAmounts(rawSettings) {
       loanBeforeInsurance: 0,
       insurancePremiumRate: 0,
       insurancePremiumAmount: 0,
+      insurancePremiumTaxRate: 0,
+      insurancePremiumTaxAmount: 0,
       principalAmount: 0,
       requiresInsurance: false,
+      lendingValue,
+      asIsValue,
+      asImprovedValue,
+      improvementAdvanceType,
       errorMessage: `La mise de fonds minimale requise est ${formatCurrency(minimumDownPayment)}.`,
     };
   }
 
-  const loanBeforeInsurance = roundCurrency(Math.max(purchasePrice - downPaymentAmount, 0));
+  const loanBeforeInsurance = roundCurrency(Math.max(lendingValue - downPaymentAmount, 0));
   const requiresInsurance = downPaymentPercent < 20;
   const insurancePremiumRate = requiresInsurance
-    ? getMortgageInsurancePremiumRate(loanBeforeInsurance / purchasePrice)
+    ? getMortgageInsurancePremiumRate(loanBeforeInsurance / lendingValue)
     : 0;
   if (requiresInsurance && insurancePremiumRate <= 0) {
     return {
@@ -4499,8 +4763,14 @@ function resolveMortgageBaseAmounts(rawSettings) {
       loanBeforeInsurance,
       insurancePremiumRate: 0,
       insurancePremiumAmount: 0,
+      insurancePremiumTaxRate: 0,
+      insurancePremiumTaxAmount: 0,
       principalAmount: 0,
       requiresInsurance,
+      lendingValue,
+      asIsValue,
+      asImprovedValue,
+      improvementAdvanceType,
       errorMessage: "Le rapport prêt-valeur dépasse la fourchette assurée par la SCHL.",
     };
   }
@@ -4508,6 +4778,10 @@ function resolveMortgageBaseAmounts(rawSettings) {
   const insurancePremiumAmount = requiresInsurance
     ? roundCurrency(loanBeforeInsurance * insurancePremiumRate)
     : 0;
+  const insurancePremiumTaxRate = requiresInsurance
+    ? MORTGAGE_RULES.insurancePremiumTaxByProvince[settings.province] || 0
+    : 0;
+  const insurancePremiumTaxAmount = roundCurrency(insurancePremiumAmount * insurancePremiumTaxRate);
   const principalAmount = roundCurrency(loanBeforeInsurance + insurancePremiumAmount);
   return {
     isValid: principalAmount > 0,
@@ -4519,8 +4793,14 @@ function resolveMortgageBaseAmounts(rawSettings) {
     loanBeforeInsurance,
     insurancePremiumRate,
     insurancePremiumAmount,
+    insurancePremiumTaxRate,
+    insurancePremiumTaxAmount,
     principalAmount,
     requiresInsurance,
+    lendingValue,
+    asIsValue,
+    asImprovedValue,
+    improvementAdvanceType,
     errorMessage: principalAmount > 0 ? "" : "Le prêt calculé doit être supérieur à zéro.",
   };
 }
@@ -4555,6 +4835,173 @@ function getMortgageInsurancePremiumRate(loanToValueRatio) {
     return 0.04;
   }
   return 0;
+}
+
+function normalizeMunicipality(value) {
+  return textValue(value)
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function calculateTransferDuty(settings, loanDetails) {
+  const purchasePrice = Math.max(0, parseAmount(settings.purchasePrice));
+  const taxableBase = Math.max(
+    purchasePrice,
+    parseAmount(settings.marketValueOverride),
+    parseAmount(settings.deedPriceOverride)
+  );
+  const provinceRules = MORTGAGE_RULES.transferDuty[settings.province];
+  if (!provinceRules || taxableBase <= 0) {
+    return {
+      taxableBase,
+      amount: 0,
+      label: "Aucun barème configuré",
+      rows: [],
+    };
+  }
+
+  const municipalityKey = normalizeMunicipality(settings.municipality);
+  const brackets = provinceRules.municipalOverrides[municipalityKey] || provinceRules.brackets;
+  let remainingBase = taxableBase;
+  let previousLimit = 0;
+  const rows = [];
+  for (const bracket of brackets) {
+    if (remainingBase <= 0) {
+      break;
+    }
+    const bracketLimit = Number.isFinite(bracket.upTo) ? bracket.upTo : taxableBase;
+    const taxableInBracket = Math.max(0, Math.min(taxableBase, bracketLimit) - previousLimit);
+    if (taxableInBracket > 0) {
+      const tax = roundCurrency(taxableInBracket * bracket.rate);
+      rows.push({
+        from: previousLimit,
+        to: bracket.upTo,
+        rate: bracket.rate,
+        taxable: roundCurrency(taxableInBracket),
+        tax,
+      });
+      remainingBase = roundCurrency(remainingBase - taxableInBracket);
+    }
+    previousLimit = bracketLimit;
+  }
+
+  return {
+    taxableBase,
+    amount: roundCurrency(sumBy(rows, (row) => row.tax)),
+    label: provinceRules.municipalOverrides[municipalityKey]
+      ? `Barème municipal: ${settings.municipality}`
+      : "Barème Québec par défaut",
+    rows,
+  };
+}
+
+function resolveClosingCostLine(settings, key, label, useEstimates = true) {
+  const entered = Math.max(0, parseAmount(settings[key]));
+  const estimated = MORTGAGE_RULES.closingCostEstimates[key] || 0;
+  const usesEstimate = useEstimates && entered <= 0 && estimated > 0;
+  return {
+    key,
+    label,
+    amount: roundCurrency(usesEstimate ? estimated : entered),
+    source: usesEstimate ? "estimé" : "entré",
+  };
+}
+
+function calculateClosingAnalysis(settings, loanDetails) {
+  const transferDuty = calculateTransferDuty(settings, loanDetails);
+  const useEstimates = settings.inputMode === "purchase_price" && settings.purchasePrice > 0;
+  const lines = [
+    {
+      key: "insurancePremiumTax",
+      label: "Taxe sur la prime SCHL",
+      amount: loanDetails.insurancePremiumTaxAmount || 0,
+      source: loanDetails.insurancePremiumTaxAmount > 0 ? "calculé" : "non applicable",
+    },
+    {
+      key: "transferDuty",
+      label: "Droit de mutation",
+      amount: transferDuty.amount,
+      source: transferDuty.amount > 0 ? transferDuty.label : "non applicable",
+    },
+    resolveClosingCostLine(settings, "inspectionCost", "Inspection", useEstimates),
+    resolveClosingCostLine(settings, "appraisalCost", "Évaluation", useEstimates),
+    resolveClosingCostLine(settings, "legalNotaryCost", "Notaire / frais juridiques", useEstimates),
+    resolveClosingCostLine(settings, "certificateOrSurveyCost", "Certificat de localisation", useEstimates),
+    resolveClosingCostLine(settings, "landRegistrationCost", "Inscription au registre foncier", useEstimates),
+    resolveClosingCostLine(settings, "titleInsuranceCost", "Assurance titre", useEstimates),
+    resolveClosingCostLine(settings, "prepaidAdjustments", "Ajustements prépayés", useEstimates),
+    resolveClosingCostLine(settings, "homeInsuranceUpfront", "Assurance habitation à la clôture", useEstimates),
+    resolveClosingCostLine(settings, "extraMunicipalClosingCosts", "Extra municipal / divers", useEstimates),
+  ];
+  const closingCostsExcludingDownPayment = roundCurrency(sumBy(lines, (line) => line.amount));
+  const totalCashRequiredAtClose = roundCurrency(loanDetails.downPaymentAmount + closingCostsExcludingDownPayment);
+  const cashLeftAfterClose = roundCurrency(settings.availableCash - totalCashRequiredAtClose);
+  const cashRenovationOutlay = settings.renovationsMode === "cash" ? settings.renovationsCost : 0;
+  const cashLeftAfterImmediateRenovations = roundCurrency(cashLeftAfterClose - cashRenovationOutlay);
+  const reserveTarget = Math.max(0, parseAmount(settings.targetCashReserveAfterClosing));
+  return {
+    transferDuty,
+    lines,
+    closingCostsExcludingDownPayment,
+    totalCashRequiredAtClose,
+    cashLeftAfterClose,
+    cashRenovationOutlay,
+    cashLeftAfterImmediateRenovations,
+    reserveTarget,
+    meetsReserve: cashLeftAfterImmediateRenovations >= reserveTarget,
+    isCashFeasible: cashLeftAfterImmediateRenovations >= 0,
+  };
+}
+
+function calculateSimpleLoanPayment(principal, annualRate, years) {
+  const months = Math.max(1, Math.floor(parseAmount(years) * 12));
+  const monthlyRate = Math.max(0, parseAmount(annualRate)) / 100 / 12;
+  if (principal <= 0) {
+    return 0;
+  }
+  if (!monthlyRate) {
+    return roundCurrency(principal / months);
+  }
+  return roundCurrency((principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -months)));
+}
+
+function getRenovationFinancingSummary(settings, loanDetails) {
+  if (!settings.renovationsCost || settings.renovationsMode === "none") {
+    return {
+      modeLabel: "Aucune rénovation",
+      monthlyPayment: 0,
+      note: "Aucun coût de rénovation n'est ajouté au scénario.",
+    };
+  }
+  if (settings.renovationsMode === "cash") {
+    return {
+      modeLabel: "Rénovations payées en cash",
+      monthlyPayment: 0,
+      note: `${formatCurrency(settings.renovationsCost)} sortent du cash restant après la clôture.`,
+    };
+  }
+  if (settings.renovationsMode === "separateLoan") {
+    const monthlyPayment = calculateSimpleLoanPayment(
+      settings.renovationsCost,
+      settings.separateLoanInterestRate,
+      settings.separateLoanAmortizationYears
+    );
+    return {
+      modeLabel: "Prêt rénovation séparé",
+      monthlyPayment,
+      note: `${formatCurrency(settings.renovationsCost)} restent hors hypothèque et ajoutent environ ${formatCurrency(monthlyPayment)} par mois.`,
+    };
+  }
+
+  return {
+    modeLabel: "Rénovations dans l'hypothèque",
+    monthlyPayment: 0,
+    note: `${formatCurrency(settings.renovationsCost)} sont inclus dans la valeur de prêt. Avance ${
+      loanDetails.improvementAdvanceType === "progress" ? "progressive" : "unique"
+    } estimée.`,
+  };
 }
 
 function buildMortgageSchedule(settings) {
@@ -4646,7 +5093,7 @@ function buildMortgageAnnualSummary(schedule, periodsPerYear) {
   }, []);
 }
 
-function buildMortgageCarryingCosts(settings, regularPayment, periodsPerYear) {
+function buildMortgageCarryingCosts(settings, regularPayment, periodsPerYear, separateLoanMonthlyPayment = 0) {
   const annualMortgagePayments = roundCurrency(regularPayment * periodsPerYear);
   const monthlyMortgageEquivalent = monthlyFromAnnual(annualMortgagePayments);
   const frequencyLabel = getMortgageFrequencyDefinition(settings.paymentFrequency).label.toLowerCase();
@@ -4707,6 +5154,13 @@ function buildMortgageCarryingCosts(settings, regularPayment, periodsPerYear) {
       annual: annualizeMonthly(settings.otherHousingMonthly),
     },
   ];
+  if (separateLoanMonthlyPayment > 0) {
+    breakdown.push({
+      label: "Prêt rénovation séparé",
+      monthly: roundCurrency(separateLoanMonthlyPayment),
+      annual: annualizeMonthly(separateLoanMonthlyPayment),
+    });
+  }
 
   const monthlyExtras = roundCurrency(
     sumBy(breakdown.slice(1), (item) => item.monthly)
@@ -4805,6 +5259,8 @@ function sanitizeMortgageTool(input) {
   const paymentFrequency = textValue(input.paymentFrequency);
   const prepaymentFrequency = textValue(input.prepaymentFrequency);
   const downPaymentType = textValue(input.downPaymentType);
+  const province = textValue(input.province).toUpperCase();
+  const renovationsMode = textValue(input.renovationsMode);
   return {
     scenarioId: textValue(input.scenarioId),
     scenarioName: textValue(input.scenarioName),
@@ -4812,6 +5268,48 @@ function sanitizeMortgageTool(input) {
     purchasePrice: Math.max(0, parseAmount(input.purchasePrice ?? DEFAULT_MORTGAGE_TOOL.purchasePrice)),
     downPaymentValue: Math.max(0, parseAmount(input.downPaymentValue ?? DEFAULT_MORTGAGE_TOOL.downPaymentValue)),
     downPaymentType: downPaymentType === "amount" ? "amount" : DEFAULT_MORTGAGE_TOOL.downPaymentType,
+    province: MORTGAGE_RULES.insurancePremiumTaxByProvince[province] !== undefined ? province : DEFAULT_MORTGAGE_TOOL.province,
+    municipality: textValue(input.municipality) || DEFAULT_MORTGAGE_TOOL.municipality,
+    availableCash: Math.max(0, parseAmount(input.availableCash ?? DEFAULT_MORTGAGE_TOOL.availableCash)),
+    targetCashReserveAfterClosing: Math.max(
+      0,
+      parseAmount(input.targetCashReserveAfterClosing ?? DEFAULT_MORTGAGE_TOOL.targetCashReserveAfterClosing)
+    ),
+    renovationsCost: Math.max(0, parseAmount(input.renovationsCost ?? DEFAULT_MORTGAGE_TOOL.renovationsCost)),
+    renovationsMode: ["none", "cash", "mortgageImprovement", "separateLoan"].includes(renovationsMode)
+      ? renovationsMode
+      : DEFAULT_MORTGAGE_TOOL.renovationsMode,
+    separateLoanInterestRate: Math.max(
+      0,
+      parseAmount(input.separateLoanInterestRate ?? DEFAULT_MORTGAGE_TOOL.separateLoanInterestRate)
+    ),
+    separateLoanAmortizationYears: clampInteger(
+      input.separateLoanAmortizationYears ?? DEFAULT_MORTGAGE_TOOL.separateLoanAmortizationYears,
+      1,
+      30
+    ),
+    inspectionCost: Math.max(0, parseAmount(input.inspectionCost ?? DEFAULT_MORTGAGE_TOOL.inspectionCost)),
+    appraisalCost: Math.max(0, parseAmount(input.appraisalCost ?? DEFAULT_MORTGAGE_TOOL.appraisalCost)),
+    legalNotaryCost: Math.max(0, parseAmount(input.legalNotaryCost ?? DEFAULT_MORTGAGE_TOOL.legalNotaryCost)),
+    certificateOrSurveyCost: Math.max(
+      0,
+      parseAmount(input.certificateOrSurveyCost ?? DEFAULT_MORTGAGE_TOOL.certificateOrSurveyCost)
+    ),
+    prepaidAdjustments: Math.max(0, parseAmount(input.prepaidAdjustments ?? DEFAULT_MORTGAGE_TOOL.prepaidAdjustments)),
+    homeInsuranceUpfront: Math.max(
+      0,
+      parseAmount(input.homeInsuranceUpfront ?? DEFAULT_MORTGAGE_TOOL.homeInsuranceUpfront)
+    ),
+    titleInsuranceCost: Math.max(0, parseAmount(input.titleInsuranceCost ?? DEFAULT_MORTGAGE_TOOL.titleInsuranceCost)),
+    landRegistrationCost: Math.max(
+      0,
+      parseAmount(input.landRegistrationCost ?? DEFAULT_MORTGAGE_TOOL.landRegistrationCost)
+    ),
+    extraMunicipalClosingCosts: Math.max(
+      0,
+      parseAmount(input.extraMunicipalClosingCosts ?? DEFAULT_MORTGAGE_TOOL.extraMunicipalClosingCosts)
+    ),
+    marketValueOverride: Math.max(0, parseAmount(input.marketValueOverride ?? DEFAULT_MORTGAGE_TOOL.marketValueOverride)),
     principal: Math.max(0, parseAmount(input.principal ?? DEFAULT_MORTGAGE_TOOL.principal)),
     interestRate: Math.max(0, parseAmount(input.interestRate ?? DEFAULT_MORTGAGE_TOOL.interestRate)),
     amortizationYears: clampInteger(

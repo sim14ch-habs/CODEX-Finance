@@ -25,7 +25,7 @@
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-04-10 / mortgage-fix</p>
+          <p class="eyebrow">Build 2026-04-13 / mortgage-closing-costs</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -476,6 +476,91 @@
                 Le prêt peut être entré directement, ou calculé à partir du prix d'achat et de la mise de fonds.
               </p>
               <div class="mortgage-form-span">
+                <strong>Clôture et liquidités</strong>
+                <p>Ajoute le cash disponible et les frais de clôture. Si une ligne reste à 0, le calculateur utilise une estimation configurable.</p>
+              </div>
+              <label>
+                Province
+                <select name="province">
+                  <option value="QC">Québec</option>
+                  <option value="ON">Ontario</option>
+                  <option value="OTHER">Autre province</option>
+                </select>
+              </label>
+              <label>
+                Municipalité
+                <input name="municipality" type="text" placeholder="Québec">
+              </label>
+              <label>
+                Cash disponible
+                <input name="availableCash" type="number" min="0" step="0.01" placeholder="30000">
+              </label>
+              <label>
+                Réserve cible après clôture
+                <input name="targetCashReserveAfterClosing" type="number" min="0" step="0.01" placeholder="5000">
+              </label>
+              <label>
+                Coût des rénovations
+                <input name="renovationsCost" type="number" min="0" step="0.01" placeholder="15000">
+              </label>
+              <label>
+                Mode de rénovations
+                <select name="renovationsMode">
+                  <option value="none">Aucune rénovation</option>
+                  <option value="cash">Payées en cash</option>
+                  <option value="mortgageImprovement">Financées dans l'hypothèque</option>
+                  <option value="separateLoan">Prêt séparé</option>
+                </select>
+              </label>
+              <label>
+                Taux du prêt rénovation séparé
+                <input name="separateLoanInterestRate" type="number" min="0" step="0.01" placeholder="8.99">
+              </label>
+              <label>
+                Amortissement du prêt séparé
+                <input name="separateLoanAmortizationYears" type="number" min="1" max="15" step="1" placeholder="5">
+              </label>
+              <label>
+                Inspection
+                <input name="inspectionCost" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Évaluation
+                <input name="appraisalCost" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Notaire / frais juridiques
+                <input name="legalNotaryCost" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Certificat de localisation
+                <input name="certificateOrSurveyCost" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Ajustements prépayés
+                <input name="prepaidAdjustments" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Assurance habitation à la clôture
+                <input name="homeInsuranceUpfront" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Assurance titre
+                <input name="titleInsuranceCost" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Inscription au registre foncier
+                <input name="landRegistrationCost" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Extra municipal / divers
+                <input name="extraMunicipalClosingCosts" type="number" min="0" step="0.01" placeholder="0">
+              </label>
+              <label>
+                Valeur marchande override
+                <input name="marketValueOverride" type="number" min="0" step="0.01" placeholder="optionnel">
+              </label>
+              <div class="mortgage-form-span">
                 <strong>Coût de possession tout inclus</strong>
                 <p>Ajoute les frais annuels et mensuels du logement pour estimer combien la maison coûterait réellement chaque mois.</p>
               </div>
@@ -583,6 +668,28 @@
                     </tr>
                   </thead>
                   <tbody id="mortgageCarryingCostTable"></tbody>
+                </table>
+              </div>
+            </article>
+
+            <article class="mortgage-block">
+              <div class="mortgage-block-head">
+                <div>
+                  <p class="section-kicker">Clôture</p>
+                  <h3>Cash requis</h3>
+                </div>
+                <p>Ce qui est financé reste dans l'hypothèque; ce tableau montre ce qui doit sortir en argent comptant.</p>
+              </div>
+              <div class="mortgage-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Catégorie</th>
+                      <th>Montant</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mortgageClosingCostTable"></tbody>
                 </table>
               </div>
             </article>
@@ -1288,7 +1395,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260318-2"></script>
-    <script src="app.js?v=20260410-1"></script>
+    <script src="app.js?v=20260413-1"></script>
   </body>
 </html>
 
