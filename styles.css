@@ -677,6 +677,7 @@ textarea {
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(19, 35, 29, 0.08);
   border-radius: var(--radius-lg);
+  min-width: 0;
   padding: 20px;
 }
 
@@ -702,10 +703,13 @@ textarea {
 }
 
 .mortgage-table-scroll {
+  max-width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .mortgage-table-scroll table {
+  min-width: 520px;
   width: 100%;
 }
 
@@ -1825,6 +1829,44 @@ svg {
   .calendar-day-detail-list,
   .mobile-entry-list {
     grid-template-columns: 1fr;
+  }
+
+  [data-mobile-section="mortgage"],
+  [data-mobile-section="mortgage"] .planner-layout,
+  [data-mobile-section="mortgage"] .mortgage-report-grid,
+  [data-mobile-section="mortgage"] .mortgage-block,
+  [data-mobile-section="mortgage"] .mortgage-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  [data-mobile-section="mortgage"] .mortgage-report-grid {
+    gap: 14px;
+    overflow: hidden;
+  }
+
+  [data-mobile-section="mortgage"] .mortgage-block {
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  [data-mobile-section="mortgage"] .mortgage-table-scroll {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  [data-mobile-section="mortgage"] .mortgage-table-scroll table {
+    min-width: 560px;
+  }
+
+  [data-mobile-section="mortgage"] .mortgage-block-head p,
+  [data-mobile-section="mortgage"] .mortgage-narrative,
+  [data-mobile-section="mortgage"] .mortgage-scenario-card {
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .mobile-entry-list {

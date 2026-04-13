@@ -18,14 +18,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260406-2">
+    <link rel="stylesheet" href="styles.css?v=20260413-2">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-04-13 / mortgage-closing-costs</p>
+          <p class="eyebrow">Build 2026-04-13 / mortgage-smart-fields</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -475,11 +475,11 @@
               <p id="mortgageLoanHelper" class="helper-text form-helper mortgage-helper">
                 Le prêt peut être entré directement, ou calculé à partir du prix d'achat et de la mise de fonds.
               </p>
-              <div class="mortgage-form-span">
+              <div class="mortgage-form-span" data-mortgage-visibility="purchase">
                 <strong>Clôture et liquidités</strong>
                 <p>Ajoute le cash disponible et les frais de clôture. Si une ligne reste à 0, le calculateur utilise une estimation configurable.</p>
               </div>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Province
                 <select name="province">
                   <option value="QC">Québec</option>
@@ -487,23 +487,23 @@
                   <option value="OTHER">Autre province</option>
                 </select>
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Municipalité
                 <input name="municipality" type="text" placeholder="Québec">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Cash disponible
                 <input name="availableCash" type="number" min="0" step="0.01" placeholder="30000">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Réserve cible après clôture
                 <input name="targetCashReserveAfterClosing" type="number" min="0" step="0.01" placeholder="5000">
               </label>
-              <label>
+              <label data-mortgage-visibility="renovation">
                 Coût des rénovations
                 <input name="renovationsCost" type="number" min="0" step="0.01" placeholder="15000">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Mode de rénovations
                 <select name="renovationsMode">
                   <option value="none">Aucune rénovation</option>
@@ -512,51 +512,51 @@
                   <option value="separateLoan">Prêt séparé</option>
                 </select>
               </label>
-              <label>
+              <label data-mortgage-visibility="separate-loan">
                 Taux du prêt rénovation séparé
                 <input name="separateLoanInterestRate" type="number" min="0" step="0.01" placeholder="8.99">
               </label>
-              <label>
+              <label data-mortgage-visibility="separate-loan">
                 Amortissement du prêt séparé
                 <input name="separateLoanAmortizationYears" type="number" min="1" max="15" step="1" placeholder="5">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Inspection
                 <input name="inspectionCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Évaluation
                 <input name="appraisalCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Notaire / frais juridiques
                 <input name="legalNotaryCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Certificat de localisation
                 <input name="certificateOrSurveyCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Ajustements prépayés
                 <input name="prepaidAdjustments" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Assurance habitation à la clôture
                 <input name="homeInsuranceUpfront" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Assurance titre
                 <input name="titleInsuranceCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Inscription au registre foncier
                 <input name="landRegistrationCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Extra municipal / divers
                 <input name="extraMunicipalClosingCosts" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="purchase">
                 Valeur marchande override
                 <input name="marketValueOverride" type="number" min="0" step="0.01" placeholder="optionnel">
               </label>
@@ -1395,7 +1395,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260318-2"></script>
-    <script src="app.js?v=20260413-1"></script>
+    <script src="app.js?v=20260413-2"></script>
   </body>
 </html>
 

@@ -3864,6 +3864,7 @@ function syncMortgageInputModeUI(mortgage = state.mortgageTool) {
   purchasePriceField.hidden = !usingPurchasePrice;
   downPaymentValueField.hidden = !usingPurchasePrice;
   downPaymentTypeField.hidden = !usingPurchasePrice;
+  syncMortgageConditionalFields(form, settings);
   form.elements.principal.readOnly = usingPurchasePrice;
   principalLabel.textContent = usingPurchasePrice
     ? "Montant du prêt calculé"
@@ -3892,6 +3893,30 @@ function syncMortgageInputModeUI(mortgage = state.mortgageTool) {
   }
 
   loanHelper.textContent = "Le prêt peut être entré directement, ou calculé à partir du prix d'achat et de la mise de fonds.";
+}
+
+function syncMortgageConditionalFields(form, settings) {
+  const usingPurchasePrice = settings.inputMode === "purchase_price";
+  const showRenovationCost = usingPurchasePrice && settings.renovationsMode !== "none";
+  const showSeparateLoan = usingPurchasePrice && settings.renovationsMode === "separateLoan";
+  form.querySelectorAll("[data-mortgage-visibility]").forEach((element) => {
+    const rule = element.dataset.mortgageVisibility;
+    let isVisible = true;
+    if (rule === "purchase") {
+      isVisible = usingPurchasePrice;
+    }
+    if (rule === "renovation") {
+      isVisible = showRenovationCost;
+    }
+    if (rule === "separate-loan") {
+      isVisible = showSeparateLoan;
+    }
+
+    element.hidden = !isVisible;
+    element.querySelectorAll("input, select, textarea").forEach((control) => {
+      control.disabled = !isVisible;
+    });
+  });
 }
 
 function syncMortgageScenarioHelper(mortgage = state.mortgageTool) {
