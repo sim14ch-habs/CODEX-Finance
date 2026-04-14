@@ -110,6 +110,7 @@ const MORTGAGE_RULES = {
 const DEFAULT_MORTGAGE_TOOL = {
   scenarioId: "",
   scenarioName: "",
+  detailMode: "simple",
   inputMode: "mortgage_amount",
   purchasePrice: 0,
   downPaymentValue: 20,
@@ -1360,6 +1361,16 @@ async function subscribeToBudgetChanges(householdId) {
           return;
         }
 
+        if (hasUnsyncedLocalCloudChanges(nextSerialized)) {
+          setCloudStatus(
+            "error",
+            "Conflit cloud détecté.",
+            "Le cloud a changé pendant que cet appareil avait des changements locaux. Utilisez Recharger depuis le cloud ou Envoyer le budget local pour choisir la version à garder."
+          );
+          renderAll();
+          return;
+        }
+
         applyRemoteBudget(nextRecord.budget_state, nextRecord.updated_at);
       }
     )
@@ -1378,6 +1389,49 @@ async function closeCloudSubscription() {
   await cloudState.client.removeChannel(cloudState.channel);
   cloudState.channel = null;
   cloudState.channelHouseholdId = null;
+}
+
+function hasUnsyncedLocalCloudChanges(incomingSerializedBudget = "") {
+  if (!cloudState.lastSerializedBudget) {
+    return false;
+  }
+
+  const localSerialized = JSON.stringify(state);
+  return (
+    localSerialized !== cloudState.lastSerializedBudget &&
+    incomingSerializedBudget !== cloudState.lastSerializedBudget &&
+    incomingSerializedBudget !== localSerialized
+  );
+}
+
+async function detectCloudConflict(localSerializedBudget) {
+  if (!cloudState.client || !cloudState.household || !cloudState.lastSerializedBudget) {
+    return { hasConflict: false, row: null };
+  }
+
+  const { data, error } = await cloudState.client
+    .from("household_budget_state")
+    .select("budget_state, updated_at")
+    .eq("household_id", cloudState.household.household_id)
+    .limit(1);
+
+  if (error) {
+    console.warn("Vérification de conflit cloud impossible:", error);
+    return { hasConflict: false, row: null };
+  }
+
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row || !row.budget_state) {
+    return { hasConflict: false, row: null };
+  }
+
+  const remoteSerialized = JSON.stringify(sanitizeState(row.budget_state));
+  return {
+    hasConflict:
+      remoteSerialized !== cloudState.lastSerializedBudget &&
+      remoteSerialized !== localSerializedBudget,
+    row,
+  };
 }
 
 function scheduleCloudSave() {
@@ -1407,6 +1461,25 @@ async function saveBudgetToCloud(forceSync) {
   const serialized = JSON.stringify(state);
   if (!forceSync && serialized === cloudState.lastSerializedBudget) {
     return;
+  }
+
+  if (forceSync) {
+    const conflict = await detectCloudConflict(serialized);
+    if (conflict.hasConflict) {
+      setCloudStatus(
+        "error",
+        "Conflit cloud possible détecté.",
+        "Le budget cloud a changé depuis votre dernière lecture. Confirmez seulement si vous voulez remplacer la version cloud par celle de cet appareil."
+      );
+      renderAll();
+      const shouldOverwrite = window.confirm(
+        "Le cloud a changé depuis votre dernière synchronisation. OK = envoyer ce budget local et remplacer le cloud. Annuler = recharger la version cloud."
+      );
+      if (!shouldOverwrite) {
+        applyRemoteBudget(conflict.row.budget_state, conflict.row.updated_at);
+        return;
+      }
+    }
   }
 
   cloudState.syncInFlight = true;
@@ -3254,8 +3327,26 @@ function handleQuickActionClicks(event) {
   }
 
   const action = button.dataset.quickAction;
-  const owner = button.dataset.owner || "";
-  if (!action || !owner) {
+  const owner =
+    button.dataset.owner ||
+    getDefaultOwnerForHolder(ACCOUNT_HOLDERS.partnerOne) ||
+    getFirstActiveOwner() ||
+    "";
+  if (!action) {
+    return;
+  }
+
+  if (action === "backup") {
+    exportState();
+    return;
+  }
+
+  if (action === "mortgage") {
+    focusForm("mortgageForm", "inputMode", "mortgage");
+    return;
+  }
+
+  if (!owner) {
     return;
   }
 
@@ -3814,6 +3905,7 @@ function readMortgageForm(form) {
   return sanitizeMortgageTool({
     scenarioId: form.elements.scenarioId.value,
     scenarioName: form.elements.scenarioName.value,
+    detailMode: form.elements.detailMode.value,
     inputMode: form.elements.inputMode.value,
     purchasePrice: form.elements.purchasePrice.value,
     downPaymentValue: form.elements.downPaymentValue.value,
@@ -3876,6 +3968,7 @@ function populateMortgageForm() {
   const mortgage = sanitizeMortgageTool(state.mortgageTool);
   form.elements.scenarioId.value = mortgage.scenarioId || "";
   form.elements.scenarioName.value = mortgage.scenarioName || "";
+  form.elements.detailMode.value = mortgage.detailMode;
   form.elements.inputMode.value = mortgage.inputMode;
   form.elements.purchasePrice.value = mortgage.purchasePrice || mortgage.purchasePrice === 0 ? String(mortgage.purchasePrice) : "";
   form.elements.downPaymentValue.value =
@@ -3971,20 +4064,29 @@ function syncMortgageInputModeUI(mortgage = state.mortgageTool) {
 
 function syncMortgageConditionalFields(form, settings) {
   const usingPurchasePrice = settings.inputMode === "purchase_price";
+  const usingAdvancedView = settings.detailMode === "advanced";
   const showRenovationCost = usingPurchasePrice && settings.renovationsMode !== "none";
   const showSeparateLoan = usingPurchasePrice && settings.renovationsMode === "separateLoan";
   form.querySelectorAll("[data-mortgage-visibility]").forEach((element) => {
-    const rule = element.dataset.mortgageVisibility;
-    let isVisible = true;
-    if (rule === "purchase") {
-      isVisible = usingPurchasePrice;
-    }
-    if (rule === "renovation") {
-      isVisible = showRenovationCost;
-    }
-    if (rule === "separate-loan") {
-      isVisible = showSeparateLoan;
-    }
+    const rules = (element.dataset.mortgageVisibility || "")
+      .split(/\s+/)
+      .map((rule) => rule.trim())
+      .filter(Boolean);
+    const isVisible = rules.every((rule) => {
+      if (rule === "purchase") {
+        return usingPurchasePrice;
+      }
+      if (rule === "renovation") {
+        return showRenovationCost;
+      }
+      if (rule === "separate-loan") {
+        return showSeparateLoan;
+      }
+      if (rule === "advanced") {
+        return usingAdvancedView;
+      }
+      return true;
+    });
 
     element.hidden = !isVisible;
     element.querySelectorAll("input, select, textarea").forEach((control) => {
@@ -4188,27 +4290,31 @@ function syncMortgageHelperText(mortgage = state.mortgageTool) {
   const definition = getMortgageFrequencyDefinition(mortgage.paymentFrequency);
   const amount = parseAmount(mortgage.prepaymentAmount);
   const startPayment = Math.max(1, Math.floor(parseAmount(mortgage.prepaymentStartPayment) || 1));
+  const detailPrefix = mortgage.detailMode === "simple"
+    ? "Vue simple active: les champs détaillés sont masqués, mais les valeurs déjà enregistrées restent incluses. "
+    : "Vue avancée active: tous les détails du scénario sont visibles. ";
 
   if (amount <= 0) {
-    target.textContent = "Aucun remboursement anticipé n'est appliqué. Les résultats montrent seulement le plan régulier.";
+    target.textContent = `${detailPrefix}Aucun remboursement anticipé n'est appliqué. Les résultats montrent seulement le plan régulier.`;
     return;
   }
 
   if (mortgage.prepaymentFrequency === "regular") {
-    target.textContent = `${formatCurrency(amount)} seront ajoutés à chaque versement à partir du versement #${startPayment}.`;
+    target.textContent = `${detailPrefix}${formatCurrency(amount)} seront ajoutés à chaque versement à partir du versement #${startPayment}.`;
     return;
   }
 
   if (mortgage.prepaymentFrequency === "yearly") {
-    target.textContent = `${formatCurrency(amount)} seront ajoutés une fois par année, soit tous les ${definition.periodsPerYear} versements, à partir du versement #${startPayment}.`;
+    target.textContent = `${detailPrefix}${formatCurrency(amount)} seront ajoutés une fois par année, soit tous les ${definition.periodsPerYear} versements, à partir du versement #${startPayment}.`;
     return;
   }
 
-  target.textContent = `${formatCurrency(amount)} seront ajoutés une seule fois au versement #${startPayment}.`;
+  target.textContent = `${detailPrefix}${formatCurrency(amount)} seront ajoutés une seule fois au versement #${startPayment}.`;
 }
 
 function renderMortgageToolOutput(mortgage = state.mortgageTool) {
   const result = calculateMortgageScenario(mortgage);
+  renderMortgageComparison(result);
   const quickStatsTarget = $("mortgageQuickStats");
   const summaryCardsTarget = $("mortgageSummaryCards");
   const carryingCostTarget = $("mortgageCarryingCostTable");
@@ -4612,6 +4718,124 @@ function renderMortgageToolOutput(mortgage = state.mortgageTool) {
       )
       .join("");
   }
+}
+
+function renderMortgageComparison(currentResult = calculateMortgageScenario(state.mortgageTool)) {
+  const tableTarget = $("mortgageComparisonTable");
+  const insightTarget = $("mortgageComparisonInsight");
+  if (!tableTarget || !insightTarget) {
+    return;
+  }
+
+  const currentSettings = sanitizeMortgageTool(state.mortgageTool);
+  const scenarios = getMortgageScenarios()
+    .filter((scenario) => scenario.id !== currentSettings.scenarioId)
+    .slice(0, 5);
+  const rows = [
+    {
+      name: currentSettings.scenarioName || "Simulation courante",
+      badge: "Actuelle",
+      result: currentResult,
+      settings: currentSettings,
+    },
+    ...scenarios.map((scenario) => ({
+      name: scenario.name,
+      badge: "Sauvegardée",
+      result: calculateMortgageScenario(scenario.settings),
+      settings: scenario.settings,
+    })),
+  ];
+
+  const validRows = rows.filter((row) => row.result.isValid);
+  if (!validRows.length) {
+    insightTarget.textContent = "Ajoute un prêt valide pour comparer tes options.";
+    tableTarget.innerHTML = `
+      <tr>
+        <td colspan="8">Aucune hypothèque valide à comparer pour l'instant.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  const bestMonthly = validRows.reduce((best, row) => {
+    if (!best || row.result.carryingCosts.totalMonthlyHousingCost < best.result.carryingCosts.totalMonthlyHousingCost) {
+      return row;
+    }
+    return best;
+  }, null);
+  const mostCash = validRows.reduce((best, row) => {
+    if (!best || row.result.closingAnalysis.cashLeftAfterImmediateRenovations > best.result.closingAnalysis.cashLeftAfterImmediateRenovations) {
+      return row;
+    }
+    return best;
+  }, null);
+
+  insightTarget.textContent =
+    bestMonthly && mostCash
+      ? `Paiement tout inclus le plus bas: ${bestMonthly.name}. Meilleure liquidité après clôture: ${mostCash.name}.`
+      : "Compare la simulation courante avec tes scénarios sauvegardés.";
+
+  tableTarget.innerHTML = rows
+    .map((row) => renderMortgageComparisonRow(row))
+    .join("");
+}
+
+function renderMortgageComparisonRow(row) {
+  if (!row.result.isValid) {
+    return `
+      <tr>
+        <td>
+          <strong>${escapeHtml(row.name)}</strong>
+          <span class="table-subtext">${escapeHtml(row.badge)}</span>
+        </td>
+        <td colspan="7">${escapeHtml(row.result.errorMessage || "Scénario incomplet.")}</td>
+      </tr>
+    `;
+  }
+
+  const result = row.result;
+  const priceOrLoan = result.loanDetails.inputMode === "purchase_price"
+    ? formatCurrency(result.loanDetails.purchasePrice)
+    : formatCurrency(result.loanDetails.principalAmount);
+  const downPayment = result.loanDetails.inputMode === "purchase_price"
+    ? `${formatCurrency(result.loanDetails.downPaymentAmount)} (${formatPercent(result.loanDetails.downPaymentPercent, 1)})`
+    : "-";
+  const cashLabel = result.loanDetails.inputMode === "purchase_price"
+    ? formatCurrency(result.closingAnalysis.cashLeftAfterImmediateRenovations)
+    : "-";
+  const reading = getMortgageComparisonReading(result);
+
+  return `
+    <tr>
+      <td>
+        <strong>${escapeHtml(row.name)}</strong>
+        <span class="table-subtext">${escapeHtml(row.badge)} • ${escapeHtml(formatPercent(result.settings.interestRate, 2))}</span>
+      </td>
+      <td>${escapeHtml(priceOrLoan)}</td>
+      <td>${escapeHtml(downPayment)}</td>
+      <td>${escapeHtml(formatCurrency(result.regularPayment))}</td>
+      <td>${escapeHtml(formatCurrency(result.carryingCosts.totalMonthlyHousingCost))}</td>
+      <td>${escapeHtml(cashLabel)}</td>
+      <td>${escapeHtml(formatCurrency(result.totals.interest))}</td>
+      <td><span class="status-chip ${escapeHtml(reading.tone)}">${escapeHtml(reading.label)}</span></td>
+    </tr>
+  `;
+}
+
+function getMortgageComparisonReading(result) {
+  if (result.loanDetails.inputMode === "purchase_price" && !result.closingAnalysis.isCashFeasible) {
+    return { tone: "critical", label: "Cash insuffisant" };
+  }
+  if (result.loanDetails.inputMode === "purchase_price" && result.closingAnalysis.reserveTarget > 0 && !result.closingAnalysis.meetsReserve) {
+    return { tone: "warning", label: "Réserve basse" };
+  }
+  if (result.renovationSummary.monthlyPayment > 0) {
+    return { tone: "warning", label: "Dette réno" };
+  }
+  if (result.loanDetails.requiresInsurance) {
+    return { tone: "neutral", label: "Assuré SCHL" };
+  }
+  return { tone: "success", label: "Stable" };
 }
 
 function calculateMortgageScenario(rawSettings) {
@@ -5355,6 +5579,7 @@ function sanitizeMortgageTool(input) {
   }
 
   const inputMode = textValue(input.inputMode);
+  const detailMode = textValue(input.detailMode);
   const paymentFrequency = textValue(input.paymentFrequency);
   const prepaymentFrequency = textValue(input.prepaymentFrequency);
   const downPaymentType = textValue(input.downPaymentType);
@@ -5363,6 +5588,7 @@ function sanitizeMortgageTool(input) {
   return {
     scenarioId: textValue(input.scenarioId),
     scenarioName: textValue(input.scenarioName),
+    detailMode: detailMode === "advanced" ? "advanced" : DEFAULT_MORTGAGE_TOOL.detailMode,
     inputMode: inputMode === "purchase_price" ? "purchase_price" : DEFAULT_MORTGAGE_TOOL.inputMode,
     purchasePrice: Math.max(0, parseAmount(input.purchasePrice ?? DEFAULT_MORTGAGE_TOOL.purchasePrice)),
     downPaymentValue: Math.max(0, parseAmount(input.downPaymentValue ?? DEFAULT_MORTGAGE_TOOL.downPaymentValue)),
@@ -5677,6 +5903,7 @@ function renderSharedDebtCards() {
   }
 
   const summary = computeSharedDebtSummary();
+  const trend = buildSharedDebtTrend();
   const partnerOne = state.household.partnerOne || "Personne 1";
   const partnerTwo = state.household.partnerTwo || "Personne 2";
   const card = {
@@ -5695,7 +5922,115 @@ function renderSharedDebtCards() {
       <span>${escapeHtml(card.label)}</span>
       <strong>${escapeHtml(card.value)}</strong>
       <p>${escapeHtml(card.note)}</p>
+      ${renderSharedDebtTrendSvg(trend)}
     </article>
+  `;
+}
+
+function buildSharedDebtTrend() {
+  const events = [];
+
+  state.sharedExpenses.forEach((item) => {
+    const debt = calculateSharedExpenseDebt(item);
+    const date = parseDate(item.date);
+    if (!debt || Number.isNaN(date.getTime())) {
+      return;
+    }
+
+    events.push({
+      date,
+      label: item.label || "Dépense partagée",
+      delta: debt.fromHolder === ACCOUNT_HOLDERS.partnerOne ? debt.amount : -debt.amount,
+    });
+  });
+
+  state.transfers.forEach((item) => {
+    if (!item.settlesDebt) {
+      return;
+    }
+
+    const date = parseDate(item.date);
+    const amount = Math.abs(parseAmount(item.amount));
+    if (!amount || Number.isNaN(date.getTime())) {
+      return;
+    }
+
+    const fromAccount = getAccountByOwner(item.fromOwner);
+    const toAccount = getAccountByOwner(item.toOwner);
+    const fromHolder = fromAccount?.holder || inferHolderFromOwner(item.fromOwner, state.household);
+    const toHolder = toAccount?.holder || inferHolderFromOwner(item.toOwner, state.household);
+    if (isSharedHolder(fromHolder) || isSharedHolder(toHolder) || fromHolder === toHolder) {
+      return;
+    }
+
+    if (fromHolder === ACCOUNT_HOLDERS.partnerOne && toHolder === ACCOUNT_HOLDERS.partnerTwo) {
+      events.push({ date, label: item.label || "Règlement", delta: -amount });
+      return;
+    }
+
+    if (fromHolder === ACCOUNT_HOLDERS.partnerTwo && toHolder === ACCOUNT_HOLDERS.partnerOne) {
+      events.push({ date, label: item.label || "Règlement", delta: amount });
+    }
+  });
+
+  let runningNet = 0;
+  const points = events
+    .sort((left, right) => left.date - right.date)
+    .map((event) => {
+      runningNet = roundCurrency(runningNet + event.delta);
+      return {
+        ...event,
+        net: runningNet,
+      };
+    });
+
+  return {
+    events,
+    points,
+  };
+}
+
+function renderSharedDebtTrendSvg(trend) {
+  if (!trend.points.length) {
+    return `<p class="debt-trend-empty">Ajoutez des dépenses partagées pour voir l'évolution de la balance.</p>`;
+  }
+
+  const width = 320;
+  const height = 104;
+  const paddingX = 10;
+  const paddingY = 16;
+  const values = trend.points.map((point) => point.net).concat(0);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const xStep = trend.points.length > 1 ? (width - paddingX * 2) / (trend.points.length - 1) : 0;
+  const mapY = (value) => height - paddingY - ((value - min) / range) * (height - paddingY * 2);
+  const zeroY = mapY(0);
+  const coordinates = trend.points.map((point, index) => ({
+    x: trend.points.length > 1 ? paddingX + index * xStep : width / 2,
+    y: mapY(point.net),
+    point,
+  }));
+  const path = coordinates.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+  const firstDate = formatDate(formatInputDate(trend.points[0].date));
+  const lastPoint = getLast(trend.points);
+  const lastDate = formatDate(formatInputDate(lastPoint.date));
+
+  return `
+    <div class="debt-trend" aria-label="Graphique de dette partagée">
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Évolution nette des dépenses partagées">
+        <line class="debt-trend-zero" x1="${paddingX}" y1="${zeroY.toFixed(2)}" x2="${width - paddingX}" y2="${zeroY.toFixed(2)}"></line>
+        <path class="debt-trend-line" d="${escapeHtml(path)}"></path>
+        ${coordinates
+          .map((coordinate) => `<circle class="debt-trend-dot" cx="${coordinate.x.toFixed(2)}" cy="${coordinate.y.toFixed(2)}" r="3"></circle>`)
+          .join("")}
+      </svg>
+      <div class="debt-trend-meta">
+        <span>${escapeHtml(firstDate)}</span>
+        <strong>${escapeHtml(formatCurrency(lastPoint.net))}</strong>
+        <span>${escapeHtml(lastDate)}</span>
+      </div>
+    </div>
   `;
 }
 
@@ -5988,9 +6323,20 @@ function exportState() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "budget-duo-data.json";
+  link.download = buildDatedBackupFilename();
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function buildDatedBackupFilename(date = new Date()) {
+  const parts = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+    String(date.getHours()).padStart(2, "0"),
+    String(date.getMinutes()).padStart(2, "0"),
+  ];
+  return `budget-duo-${parts.slice(0, 3).join("-")}-${parts.slice(3).join("h")}.json`;
 }
 
 function importState(event) {

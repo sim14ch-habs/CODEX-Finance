@@ -18,14 +18,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260414-3">
+    <link rel="stylesheet" href="styles.css?v=20260414-4">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-04-14 / tab-cursor</p>
+          <p class="eyebrow">Build 2026-04-14 / finance-qol</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -91,6 +91,13 @@
         <button class="mobile-tab" type="button" data-mobile-nav="cloud" aria-pressed="false">Cloud</button>
       </nav>
       <nav id="mobileSubsectionNav" class="mobile-subsection-nav" hidden aria-label="Sous-navigation"></nav>
+      <div class="quick-action-dock" aria-label="Actions rapides">
+        <button class="table-button edit" type="button" data-quick-action="sharedExpense">+ Dépense partagée</button>
+        <button class="table-button edit" type="button" data-quick-action="bill">+ Facture</button>
+        <button class="table-button edit" type="button" data-quick-action="transfer">+ Virement</button>
+        <button class="table-button edit" type="button" data-quick-action="mortgage">Comparer une hypothèque</button>
+        <button class="table-button edit" type="button" data-quick-action="backup">Sauvegarde datée</button>
+      </div>
 
       <main class="layout">
         <section
@@ -392,6 +399,14 @@
           <div class="planner-layout mortgage-layout">
             <form id="mortgageForm" class="planner-form mortgage-form" novalidate>
               <input name="scenarioId" type="hidden">
+              <label class="mortgage-form-span mortgage-mode-picker">
+                Vue du calculateur
+                <select name="detailMode">
+                  <option value="simple">Simple</option>
+                  <option value="advanced">Avancée</option>
+                </select>
+                <small>La vue simple garde les grands leviers visibles; la vue avancée expose les frais et remboursements détaillés.</small>
+              </label>
               <label>
                 Mode de calcul
                 <select name="inputMode">
@@ -426,7 +441,7 @@
                 Amortissement - années
                 <input name="amortizationYears" type="number" min="1" max="30" step="1" placeholder="25">
               </label>
-              <label>
+              <label data-mortgage-visibility="advanced">
                 Amortissement - mois
                 <select name="amortizationMonths">
                   <option value="0">0 mois</option>
@@ -454,7 +469,7 @@
                   <option value="monthly">Mensuelle (12x par année)</option>
                 </select>
               </label>
-              <label>
+              <label data-mortgage-visibility="advanced">
                 Terme
                 <select name="termYears">
                   <option value="1">1 année</option>
@@ -469,11 +484,11 @@
                   <option value="10">10 années</option>
                 </select>
               </label>
-              <label>
+              <label data-mortgage-visibility="advanced">
                 Montant des remboursements anticipés
                 <input name="prepaymentAmount" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="advanced">
                 Fréquence du remboursement anticipé
                 <select name="prepaymentFrequency">
                   <option value="once">Une seule fois</option>
@@ -481,7 +496,7 @@
                   <option value="regular">Même que vos versements</option>
                 </select>
               </label>
-              <label>
+              <label data-mortgage-visibility="advanced">
                 À partir du versement
                 <input name="prepaymentStartPayment" type="number" min="1" step="1" placeholder="1">
               </label>
@@ -492,7 +507,7 @@
                 <strong>Clôture et liquidités</strong>
                 <p>Ajoute le cash disponible et les frais de clôture. Si une ligne reste à 0, le calculateur utilise une estimation configurable.</p>
               </div>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Province
                 <select name="province">
                   <option value="QC">Québec</option>
@@ -500,7 +515,7 @@
                   <option value="OTHER">Autre province</option>
                 </select>
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Municipalité
                 <input name="municipality" type="text" placeholder="Québec">
               </label>
@@ -533,43 +548,43 @@
                 Amortissement du prêt séparé
                 <input name="separateLoanAmortizationYears" type="number" min="1" max="15" step="1" placeholder="5">
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Inspection
                 <input name="inspectionCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Évaluation
                 <input name="appraisalCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Notaire / frais juridiques
                 <input name="legalNotaryCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Certificat de localisation
                 <input name="certificateOrSurveyCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Ajustements prépayés
                 <input name="prepaidAdjustments" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Assurance habitation à la clôture
                 <input name="homeInsuranceUpfront" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Assurance titre
                 <input name="titleInsuranceCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Inscription au registre foncier
                 <input name="landRegistrationCost" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Extra municipal / divers
                 <input name="extraMunicipalClosingCosts" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label data-mortgage-visibility="purchase">
+              <label data-mortgage-visibility="purchase advanced">
                 Valeur marchande override
                 <input name="marketValueOverride" type="number" min="0" step="0.01" placeholder="optionnel">
               </label>
@@ -597,7 +612,7 @@
                 Électricité mensuelle
                 <input name="electricityMonthly" type="number" min="0" step="0.01" placeholder="95">
               </label>
-              <label>
+              <label data-mortgage-visibility="advanced">
                 Eau / déchets mensuel
                 <input name="waterWasteMonthly" type="number" min="0" step="0.01" placeholder="60">
               </label>
@@ -605,15 +620,15 @@
                 Frais de condo mensuels
                 <input name="condoFeesMonthly" type="number" min="0" step="0.01" placeholder="0">
               </label>
-              <label>
+              <label data-mortgage-visibility="advanced">
                 Internet / télé mensuel
                 <input name="internetMonthly" type="number" min="0" step="0.01" placeholder="120">
               </label>
-              <label>
+              <label data-mortgage-visibility="advanced">
                 Entretien annuel / fonds de réserve
                 <input name="maintenanceAnnual" type="number" min="0" step="0.01" placeholder="2400">
               </label>
-              <label>
+              <label data-mortgage-visibility="advanced">
                 Autres frais mensuels
                 <input name="otherHousingMonthly" type="number" min="0" step="0.01" placeholder="0">
               </label>
@@ -652,6 +667,33 @@
           <div id="mortgageSummaryCards" class="calendar-summary mortgage-summary"></div>
 
           <div class="mortgage-report-grid">
+            <article class="mortgage-block mortgage-block-wide">
+              <div class="mortgage-block-head">
+                <div>
+                  <p class="section-kicker">Comparateur</p>
+                  <h3>Comparer les hypothèques</h3>
+                </div>
+                <p id="mortgageComparisonInsight">Compare la simulation courante avec tes scénarios sauvegardés.</p>
+              </div>
+              <div class="mortgage-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Scénario</th>
+                      <th>Prix / prêt</th>
+                      <th>Mise de fonds</th>
+                      <th>Versement</th>
+                      <th>Tout inclus / mois</th>
+                      <th>Cash restant</th>
+                      <th>Intérêts</th>
+                      <th>Lecture</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mortgageComparisonTable"></tbody>
+                </table>
+              </div>
+            </article>
+
             <article class="mortgage-block">
               <div class="mortgage-block-head">
                 <div>
@@ -1391,7 +1433,7 @@
             </p>
           </div>
           <div class="io-actions helper-text">
-            <button id="exportBtn" class="button secondary" type="button">Exporter en JSON</button>
+            <button id="exportBtn" class="button secondary" type="button">Exporter une sauvegarde datée</button>
             <button id="importBtn" class="button ghost" type="button">Importer un JSON</button>
             <input id="importInput" type="file" accept="application/json" hidden>
           </div>
@@ -1408,7 +1450,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260318-2"></script>
-    <script src="app.js?v=20260414-2"></script>
+    <script src="app.js?v=20260414-4"></script>
   </body>
 </html>
 

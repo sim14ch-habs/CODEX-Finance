@@ -147,6 +147,16 @@ textarea {
   box-shadow: 0 8px 18px rgba(21, 94, 99, 0.12);
 }
 
+.quick-action-dock {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: -8px auto 18px;
+  max-width: 1180px;
+  padding: 0 6px;
+}
+
 .panel {
   position: relative;
   overflow: hidden;
@@ -551,6 +561,16 @@ textarea {
   line-height: 1.5;
 }
 
+.mortgage-mode-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.mortgage-mode-picker small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .mortgage-helper,
 .mortgage-footnote {
   grid-column: 1 / -1;
@@ -682,6 +702,58 @@ textarea {
   line-height: 1.45;
 }
 
+.debt-trend {
+  margin-top: 16px;
+}
+
+.debt-trend svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.debt-trend-zero {
+  stroke: rgba(19, 35, 29, 0.16);
+  stroke-width: 1;
+  stroke-dasharray: 4 5;
+}
+
+.debt-trend-line {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.debt-trend-dot {
+  fill: var(--primary);
+  stroke: white;
+  stroke-width: 2;
+}
+
+.debt-trend-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.debt-trend-meta strong {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.debt-trend-empty {
+  margin-top: 14px;
+  font-size: 0.92rem;
+}
+
 .mortgage-report-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -695,6 +767,10 @@ textarea {
   border-radius: var(--radius-lg);
   min-width: 0;
   padding: 20px;
+}
+
+.mortgage-block-wide {
+  grid-column: 1 / -1;
 }
 
 .mortgage-block-head {
@@ -727,6 +803,14 @@ textarea {
 .mortgage-table-scroll table {
   min-width: 520px;
   width: 100%;
+}
+
+.table-subtext {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
 }
 
 .mortgage-narrative {
