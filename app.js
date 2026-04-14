@@ -2113,7 +2113,7 @@ function renderMobileSubsectionNav(sectionKey, blocks, isMobile, activeSubsectio
     return;
   }
 
-  if (!isMobile || blocks.length <= 1) {
+  if (blocks.length <= 1) {
     nav.hidden = true;
     nav.innerHTML = "";
     return;
@@ -2145,7 +2145,7 @@ function syncMobileNavVisibility(activeSection, activeSubsectionId, isMobile) {
   mobileUiState.lastRenderedSection = activeSection;
   mobileUiState.lastRenderedSubsection = activeSubsectionId;
 
-  if (!isMobile || (!sectionChanged && !subsectionChanged)) {
+  if (!sectionChanged && !subsectionChanged) {
     return;
   }
 
@@ -2160,10 +2160,6 @@ function syncMobileNavVisibility(activeSection, activeSubsectionId, isMobile) {
 }
 
 function scrollMobileNavigationIntoView() {
-  if (window.innerWidth > 760) {
-    return;
-  }
-
   const nav = $("mobileSectionNav");
   if (!nav) {
     return;
@@ -2190,7 +2186,7 @@ function renderMobileSections() {
   }
 
   const isMobile = window.innerWidth <= 760;
-  nav.hidden = !isMobile;
+  nav.hidden = false;
   const activeSection = mobileUiState.section || "overview";
   const activeBlocks = getMobileSectionBlocks(activeSection);
   const activeSubsectionId = getCurrentMobileSubsectionId(activeSection, activeBlocks);
@@ -2199,11 +2195,6 @@ function renderMobileSections() {
   );
 
   document.querySelectorAll("main [data-mobile-section]").forEach((section) => {
-    if (!isMobile) {
-      section.hidden = false;
-      return;
-    }
-
     if (section.dataset.mobileSection !== activeSection) {
       section.hidden = true;
       return;
