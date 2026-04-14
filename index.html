@@ -25,7 +25,7 @@
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-04-13 / mortgage-smart-fields</p>
+          <p class="eyebrow">Build 2026-04-14 / supabase-password-login</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -131,15 +131,28 @@
               </section>
 
               <form id="cloudAuthForm" class="cloud-box" hidden>
-                <h3>Connexion par email</h3>
-                <p>Entrez votre email. Supabase vous enverra un lien magique de connexion.</p>
+                <h3>Connexion au cloud</h3>
+                <p>
+                  Utilise un mot de passe pour éviter les limites d'envoi des liens magiques Supabase.
+                  Le lien magique reste disponible en dépannage.
+                </p>
                 <label>
                   Email
                   <input id="cloudEmailInput" name="email" type="email" placeholder="vous@exemple.com" required>
                 </label>
+                <label>
+                  Mot de passe
+                  <input id="cloudPasswordInput" name="password" type="password" minlength="6" autocomplete="current-password" placeholder="Minimum 6 caractères">
+                </label>
                 <div class="form-actions">
-                  <button class="button primary" type="submit">Envoyer le lien</button>
+                  <button class="button primary" type="submit" data-cloud-auth-action="password">Se connecter</button>
+                  <button class="button secondary" type="submit" data-cloud-auth-action="signup">Créer le compte</button>
+                  <button class="button ghost" type="submit" data-cloud-auth-action="magic">Envoyer le lien magique</button>
                 </div>
+                <p class="helper-text cloud-helper">
+                  Pour créer un compte sans email, désactivez <strong>Confirm email</strong> dans Supabase
+                  <code>Authentication &gt; Providers &gt; Email</code>.
+                </p>
               </form>
 
               <section id="cloudHouseholdBox" class="cloud-box" hidden>
@@ -1395,7 +1408,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260318-2"></script>
-    <script src="app.js?v=20260413-2"></script>
+    <script src="app.js?v=20260414-1"></script>
   </body>
 </html>
 

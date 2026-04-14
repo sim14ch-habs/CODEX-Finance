@@ -1108,13 +1108,35 @@ async function handleCloudAuthSubmit(event) {
     return;
   }
 
-  const email = textValue(new FormData(event.currentTarget).get("email"));
+  const formData = new FormData(event.currentTarget);
+  const email = textValue(formData.get("email"));
+  const password = textValue(formData.get("password"));
+  const action = event.submitter?.dataset.cloudAuthAction || "password";
   if (!email) {
-    window.alert("Ajoutez votre email pour recevoir le lien magique.");
+    window.alert("Ajoutez votre email pour vous connecter.");
     return;
   }
 
-  setCloudStatus("syncing", "Envoi du lien magique...", "Verifiez ensuite votre boite email.");
+  if ((action === "password" || action === "signup") && password.length < 6) {
+    window.alert("Ajoutez un mot de passe d'au moins 6 caractères.");
+    return;
+  }
+
+  if (action === "magic") {
+    await sendCloudMagicLink(email);
+    return;
+  }
+
+  if (action === "signup") {
+    await signUpWithCloudPassword(email, password);
+    return;
+  }
+
+  await signInWithCloudPassword(email, password);
+}
+
+async function sendCloudMagicLink(email) {
+  setCloudStatus("syncing", "Envoi du lien magique...", "Vérifiez ensuite votre boite email.");
   renderAll();
 
   const { error } = await cloudState.client.auth.signInWithOtp({
@@ -1136,6 +1158,67 @@ async function handleCloudAuthSubmit(event) {
     "Lien magique envoyé.",
     `Ouvrez l'email envoyé à ${email} sur votre appareil pour terminer la connexion.`
   );
+  renderAll();
+}
+
+async function signInWithCloudPassword(email, password) {
+  setCloudStatus("syncing", "Connexion au cloud...", "Connexion avec mot de passe en cours.");
+  renderAll();
+
+  const { error } = await cloudState.client.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    console.error("Connexion par mot de passe impossible:", error);
+    setCloudStatus(
+      "error",
+      "Connexion impossible.",
+      error.message || "Vérifiez l'email, le mot de passe et la configuration Supabase."
+    );
+    renderAll();
+    return;
+  }
+
+  setCloudStatus("online", "Connecté au cloud.", "La session Supabase est active sur cet appareil.");
+  renderAll();
+}
+
+async function signUpWithCloudPassword(email, password) {
+  setCloudStatus("syncing", "Création du compte cloud...", "Création de l'utilisateur Supabase en cours.");
+  renderAll();
+
+  const { data, error } = await cloudState.client.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: cloudState.config.redirectUrl,
+    },
+  });
+
+  if (error) {
+    console.error("Creation du compte impossible:", error);
+    setCloudStatus(
+      "error",
+      "Compte non créé.",
+      error.message || "Vérifiez que l'inscription email est activée dans Supabase."
+    );
+    renderAll();
+    return;
+  }
+
+  if (!data.session) {
+    setCloudStatus(
+      "auth",
+      "Compte créé, confirmation requise.",
+      "Supabase demande encore une confirmation email. Désactivez Confirm email ou configurez SMTP custom pour éviter les liens magiques."
+    );
+    renderAll();
+    return;
+  }
+
+  setCloudStatus("online", "Compte cloud créé.", "Vous êtes connecté sans lien magique.");
   renderAll();
 }
 
