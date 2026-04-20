@@ -1,6 +1,7 @@
 ﻿const STORAGE_KEY = "budget-duo-v2";
 const LOCAL_BACKUP_STORAGE_KEY = "budget-duo-v2-local-backup";
 const UNDO_STACK_STORAGE_KEY = "budget-duo-v2-undo-stack";
+const PRIVACY_MODE_STORAGE_KEY = "budget-duo-v2-privacy-mode";
 const ACCOUNT_IDS = {
   partnerOne: "account_partner_one",
   partnerTwo: "account_partner_two",
@@ -374,6 +375,10 @@ const overviewUiState = {
   expanded: false,
 };
 
+const privacyUiState = {
+  enabled: loadPrivacyModePreference(),
+};
+
 const $ = (id) => document.getElementById(id);
 function cloneDefaults() {
   return JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -387,6 +392,7 @@ let state = loadState();
 
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
+  syncPrivacyModeUi();
   renderAll();
   void initCloud();
 });
@@ -403,6 +409,36 @@ function loadState() {
     console.error("Chargement impossible:", error);
     return cloneDefaults();
   }
+}
+
+function loadPrivacyModePreference() {
+  try {
+    return window.localStorage.getItem(PRIVACY_MODE_STORAGE_KEY) === "true";
+  } catch (error) {
+    return false;
+  }
+}
+
+function togglePrivacyMode() {
+  privacyUiState.enabled = !privacyUiState.enabled;
+  try {
+    window.localStorage.setItem(PRIVACY_MODE_STORAGE_KEY, privacyUiState.enabled ? "true" : "false");
+  } catch (error) {
+    console.warn("Préférence de confidentialité non sauvegardée:", error);
+  }
+  syncPrivacyModeUi();
+  renderAll();
+}
+
+function syncPrivacyModeUi() {
+  document.body?.classList.toggle("privacy-mode", privacyUiState.enabled);
+  const button = $("privacyModeBtn");
+  if (!button) {
+    return;
+  }
+  button.classList.toggle("is-active", privacyUiState.enabled);
+  button.setAttribute("aria-pressed", privacyUiState.enabled ? "true" : "false");
+  button.textContent = privacyUiState.enabled ? "Confidentialité active" : "Mode confidentialité";
 }
 
 function sanitizeState(input) {
@@ -782,6 +818,8 @@ function readPaycheckForm(formData) {
   const label = textValue(formData.get("label"));
   const amount = parseAmount(formData.get("amount"));
   const nextDate = textValue(formData.get("nextDate"));
+  const endDate = textValue(formData.get("endDate"));
+  const endCount = parseRecurringEndCount(formData.get("endCount"));
 
   if (!label || !amount || !nextDate) {
     window.alert("Merci de remplir le libellé, le montant et la prochaine date.");
@@ -795,6 +833,8 @@ function readPaycheckForm(formData) {
     amount,
     frequency: textValue(formData.get("frequency")) || "monthly",
     nextDate,
+    endDate,
+    endCount,
   };
 }
 
@@ -803,6 +843,7 @@ function readBillForm(formData) {
   const amount = parseAmount(formData.get("amount"));
   const nextDate = textValue(formData.get("nextDate"));
   const endDate = textValue(formData.get("endDate"));
+  const endCount = parseRecurringEndCount(formData.get("endCount"));
 
   if (!label || !amount || !nextDate) {
     window.alert("Merci de remplir le libellé, le montant et la prochaine date.");
@@ -818,6 +859,7 @@ function readBillForm(formData) {
     frequency: textValue(formData.get("frequency")) || "monthly",
     nextDate,
     endDate,
+    endCount,
   };
 }
 
@@ -1728,6 +1770,8 @@ function renderActivityLog() {
 function renderActivityEntry(entry) {
   const summary = splitActivityDetail(entry.detail);
   const badge = getActivityBadge(entry);
+  const lead = privacyUiState.enabled ? "Détail masqué en mode confidentialité." : summary.lead;
+  const chips = privacyUiState.enabled ? ["Confidentiel"] : summary.chips;
   return `
     <article class="activity-entry ${escapeHtml(entry.tone)}">
       <div class="activity-entry-head">
@@ -1737,9 +1781,9 @@ function renderActivityEntry(entry) {
         </div>
         <span>${escapeHtml(formatCloudDateTime(entry.createdAt))}</span>
       </div>
-      <p class="activity-entry-lead">${escapeHtml(summary.lead)}</p>
-      ${summary.chips.length
-        ? `<div class="activity-meta">${summary.chips
+      <p class="activity-entry-lead">${escapeHtml(lead)}</p>
+      ${chips.length
+        ? `<div class="activity-meta">${chips
             .map((chip) => `<span class="activity-chip">${escapeHtml(chip)}</span>`)
             .join("")}</div>`
         : ""}
@@ -1950,7 +1994,7 @@ function getCollectionItemOwnerLabel(key, item) {
   if (key === "savingsGoals") {
     return `${formatOwnerLabel(item.owner)}${item.sourceOwner ? ` depuis ${formatOwnerLabel(item.sourceOwner)}` : ""}`;
   }
-  return item.owner;
+  return formatOwnerLabel(item.owner);
 }
 
 function getCollectionItemAmount(key, item) {
@@ -1997,6 +2041,7 @@ function buildCollectionActivityDetail(key, item) {
 }
 
 function renderAll() {
+  syncPrivacyModeUi();
   populateHouseholdForm();
   renderBalanceLabels();
   renderAccountHolderOptions();
@@ -2069,8 +2114,8 @@ function renderAccountHolderOptions() {
   renderSelectOptions(
     select,
     [
-      { value: ACCOUNT_HOLDERS.partnerOne, label: state.household.partnerOne || "Personne 1" },
-      { value: ACCOUNT_HOLDERS.partnerTwo, label: state.household.partnerTwo || "Personne 2" },
+      { value: ACCOUNT_HOLDERS.partnerOne, label: formatHouseholdMemberLabel(ACCOUNT_HOLDERS.partnerOne) },
+      { value: ACCOUNT_HOLDERS.partnerTwo, label: formatHouseholdMemberLabel(ACCOUNT_HOLDERS.partnerTwo) },
       { value: ACCOUNT_HOLDERS.shared, label: "Commun" },
     ],
     select.value
@@ -2357,7 +2402,7 @@ function getSavingsGoalOwnerOptions(scope, options = {}) {
 
   return accounts.map((account) => ({
     value: account.owner,
-    label: account.owner,
+    label: formatOwnerLabel(account.owner),
   }));
 }
 
@@ -2396,7 +2441,7 @@ function getSavingsSourceOwnerOptions(targetOwner, accounts = state.accounts, op
 
   return candidates.map((account) => ({
     value: account.owner,
-    label: `${account.owner} • ${formatAccountHolder(account.holder)} • ${
+    label: `${formatOwnerLabel(account.owner)} • ${formatAccountHolder(account.holder)} • ${
       ACCOUNT_KIND_LABELS[account.kind] || account.kind
     }`,
   }));
@@ -3016,8 +3061,37 @@ function renderMobileCollection(config) {
     : `<article class="empty-state">${escapeHtml(config.emptyMessage || "Aucune donnée pour le moment.")}</article>`;
 }
 
+function formatRecurringLimit(item) {
+  const frequencyLabel = FREQUENCY_LABELS[item.frequency] || item.frequency || "Récurrent";
+  const details = [frequencyLabel];
+  if (item.endDate) {
+    details.push(`jusqu'au ${formatDate(item.endDate)}`);
+  }
+  if (parseRecurringEndCount(item.endCount)) {
+    details.push(`pendant ${formatRecurringEndCountLabel(item.endCount, item.frequency)}`);
+  }
+  if (!item.endDate && !parseRecurringEndCount(item.endCount)) {
+    details.push("sans fin");
+  }
+  return details.join(" • ");
+}
+
+function formatRecurringEndCountLabel(count, frequency) {
+  const value = parseRecurringEndCount(count);
+  if (!value) {
+    return "";
+  }
+  const unitByFrequency = {
+    weekly: value > 1 ? "semaines" : "semaine",
+    biweekly: value > 1 ? "cycles de 2 semaines" : "cycle de 2 semaines",
+    monthly: "mois",
+    yearly: value > 1 ? "années" : "année",
+  };
+  return `${value} ${unitByFrequency[frequency] || "occurrences"}`;
+}
+
 function renderBillCard(item) {
-  const scheduleLabel = item.endDate ? `Jusqu'au ${formatDate(item.endDate)}` : FREQUENCY_LABELS[item.frequency] || item.frequency;
+  const scheduleLabel = formatRecurringLimit(item);
   return `
     <article class="mobile-entry-card">
       <div class="mobile-entry-head">
@@ -3119,20 +3193,24 @@ function renderAccountRow(account) {
 }
 
 function renderPaycheckRow(item) {
+  const scheduleLabel = formatRecurringLimit(item);
   return `
     <tr>
       <td>${escapeHtml(formatOwnerLabel(item.owner))}</td>
       <td>${escapeHtml(item.label)}</td>
       <td>${escapeHtml(FREQUENCY_LABELS[item.frequency] || item.frequency)}</td>
       <td class="positive">${escapeHtml(formatCurrency(item.amount))}</td>
-      <td>${escapeHtml(formatDate(item.nextDate))}</td>
+      <td>
+        <div>${escapeHtml(formatDate(item.nextDate))}</div>
+        <small>${escapeHtml(scheduleLabel)}</small>
+      </td>
       <td>${renderActions("paychecks", item.id)}</td>
     </tr>
   `;
 }
 
 function renderBillRow(item) {
-  const scheduleLabel = item.endDate ? `Jusqu'au ${formatDate(item.endDate)}` : "";
+  const scheduleLabel = formatRecurringLimit(item);
   return `
     <tr>
       <td>${escapeHtml(formatOwnerLabel(item.owner))}</td>
@@ -3142,7 +3220,7 @@ function renderBillRow(item) {
       <td class="negative">${escapeHtml(formatCurrency(item.amount))}</td>
       <td>
         <div>${escapeHtml(formatDate(item.nextDate))}</div>
-        ${scheduleLabel ? `<small>${escapeHtml(scheduleLabel)}</small>` : ""}
+        <small>${escapeHtml(scheduleLabel)}</small>
       </td>
       <td>${renderActions("bills", item.id)}</td>
     </tr>
@@ -3341,6 +3419,11 @@ function handleQuickActionClicks(event) {
     return;
   }
 
+  if (action === "privacy") {
+    togglePrivacyMode();
+    return;
+  }
+
   if (action === "mortgage") {
     focusForm("mortgageForm", "inputMode", "mortgage");
     return;
@@ -3429,7 +3512,7 @@ function editItem(collection, id) {
   }
   Object.entries(item).forEach(([key, value]) => {
     if (form.elements[key]) {
-      form.elements[key].value = value;
+      form.elements[key].value = key === "endCount" && !parseRecurringEndCount(value) ? "" : value;
     }
   });
   if (collection === "accounts") {
@@ -3754,28 +3837,46 @@ function renderCalendarDayDetail(dateKey, dayEvents, target) {
       <div class="calendar-day-detail-list">
         ${dayEvents.length
           ? dayEvents
-              .map(
-                (event) => `
-                  <article class="calendar-day-detail-item ${escapeHtml(event.kind === "income" ? "positive" : event.kind === "transfer" ? "transfer" : "negative")}">
-                    <div>
-                      <strong>${escapeHtml(event.label)}</strong>
-                      <p>${escapeHtml(
-                        event.kind === "transfer"
-                          ? `${formatOwnerLabel(event.fromOwner)} -> ${formatOwnerLabel(event.toOwner)}`
-                          : event.meta || formatOwnerLabel(event.owner)
-                      )}</p>
-                    </div>
-                    <span>${escapeHtml(
-                      event.kind === "transfer" ? formatCurrency(event.amount || 0) : formatSignedCurrency(event.delta || 0)
-                    )}</span>
-                  </article>
-                `
-              )
+              .map(renderCalendarDayDetailItem)
               .join("")
           : `<article class="empty-state">Choisis une autre journée du calendrier pour voir ses mouvements détaillés.</article>`}
       </div>
     </article>
   `;
+}
+
+function renderCalendarDayDetailItem(event) {
+  const tone = event.kind === "income" ? "positive" : event.kind === "transfer" ? "transfer" : "negative";
+  const metaLabel = event.kind === "transfer"
+    ? `${formatOwnerLabel(event.fromOwner)} -> ${formatOwnerLabel(event.toOwner)}`
+    : event.meta || formatOwnerLabel(event.owner);
+  const amountLabel = event.kind === "transfer"
+    ? formatCurrency(event.amount || 0)
+    : formatSignedCurrency(event.delta || 0);
+  const editTarget = getCalendarEventEditTarget(event);
+
+  return `
+    <article class="calendar-day-detail-item ${escapeHtml(tone)}">
+      <div>
+        <strong>${escapeHtml(event.label)}</strong>
+        <p>${escapeHtml(metaLabel)}</p>
+        ${editTarget
+          ? `<div class="table-actions calendar-event-actions">
+              <button class="table-button edit" type="button" data-action="edit" data-collection="${escapeHtml(editTarget.collection)}" data-id="${escapeHtml(editTarget.id)}">Modifier</button>
+            </div>`
+          : ""}
+      </div>
+      <span>${escapeHtml(amountLabel)}</span>
+    </article>
+  `;
+}
+
+function getCalendarEventEditTarget(event) {
+  const collection = event.collection || "";
+  if (!collection || !event.id) {
+    return null;
+  }
+  return { collection, id: event.id };
 }
 
 function handleCalendarDayClick(event) {
@@ -3792,10 +3893,10 @@ function collectCalendarEvents(start, end) {
   const events = [];
 
   state.paychecks.forEach((item) => {
-    events.push(...expandRecurring(item, "income", item.amount, start, end));
+    events.push(...expandRecurring(item, "income", item.amount, start, end, "paychecks"));
   });
   state.bills.forEach((item) => {
-    events.push(...expandRecurring(item, "bill", -item.amount, start, end));
+    events.push(...expandRecurring(item, "bill", -item.amount, start, end, "bills"));
   });
   state.savingsGoals.forEach((item) => {
     if (item.contributionAmount > 0 && item.nextDate) {
@@ -3813,7 +3914,8 @@ function collectCalendarEvents(start, end) {
         date,
         delta: -Math.abs(item.amount || 0),
         kind: "shared_expense",
-        meta: debt ? `${debt.fromOwner} doit ${formatCurrency(debt.amount)}` : "Dépense commune",
+        collection: "sharedExpenses",
+        meta: debt ? `${formatOwnerLabel(debt.fromOwner)} doit ${formatCurrency(debt.amount)}` : "Dépense commune",
       });
     }
   });
@@ -3827,6 +3929,7 @@ function collectCalendarEvents(start, end) {
         date,
         delta: transactionDelta(item),
         kind: item.type === "expense" ? "bill" : item.type,
+        collection: "transactions",
       });
     }
   });
@@ -3839,6 +3942,7 @@ function collectCalendarEvents(start, end) {
         date,
         amount: item.amount,
         kind: "transfer",
+        collection: "transfers",
         fromOwner: item.fromOwner,
         toOwner: item.toOwner,
       });
@@ -5819,7 +5923,7 @@ function getProjectionSelectionOptions() {
   activeAccounts.forEach((account) => {
     options.push({
       value: `account:${account.owner}`,
-      label: `${account.owner} • ${ACCOUNT_KIND_LABELS[account.kind] || account.kind} • ${formatAccountHolder(
+      label: `${formatOwnerLabel(account.owner)} • ${ACCOUNT_KIND_LABELS[account.kind] || account.kind} • ${formatAccountHolder(
         account.holder
       )}`,
     });
@@ -5904,8 +6008,8 @@ function renderSharedDebtCards() {
 
   const summary = computeSharedDebtSummary();
   const trend = buildSharedDebtTrend();
-  const partnerOne = state.household.partnerOne || "Personne 1";
-  const partnerTwo = state.household.partnerTwo || "Personne 2";
+  const partnerOne = formatHouseholdMemberLabel(ACCOUNT_HOLDERS.partnerOne);
+  const partnerTwo = formatHouseholdMemberLabel(ACCOUNT_HOLDERS.partnerTwo);
   const card = {
     label: "Solde net entre vous",
     value: formatCurrency(Math.abs(summary.net)),
@@ -5995,19 +6099,36 @@ function renderSharedDebtTrendSvg(trend) {
     return `<p class="debt-trend-empty">Ajoutez des dépenses partagées pour voir l'évolution de la balance.</p>`;
   }
 
-  const width = 320;
-  const height = 104;
-  const paddingX = 10;
-  const paddingY = 16;
+  const width = 720;
+  const height = 260;
+  const padding = {
+    top: 30,
+    right: 26,
+    bottom: 44,
+    left: 92,
+  };
   const values = trend.points.map((point) => point.net).concat(0);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const paddingValue = Math.max(25, (rawMax - rawMin || Math.max(Math.abs(rawMax), 1)) * 0.16);
+  const min = Math.floor((rawMin - paddingValue) / 25) * 25;
+  const max = Math.ceil((rawMax + paddingValue) / 25) * 25;
   const range = max - min || 1;
-  const xStep = trend.points.length > 1 ? (width - paddingX * 2) / (trend.points.length - 1) : 0;
-  const mapY = (value) => height - paddingY - ((value - min) / range) * (height - paddingY * 2);
+  const firstTime = trend.points[0].date.getTime();
+  const lastTime = getLast(trend.points).date.getTime();
+  const usableWidth = width - padding.left - padding.right;
+  const usableHeight = height - padding.top - padding.bottom;
+  const mapX = (date, index) => {
+    if (lastTime === firstTime) {
+      const xStep = trend.points.length > 1 ? usableWidth / (trend.points.length - 1) : 0;
+      return trend.points.length > 1 ? padding.left + index * xStep : padding.left + usableWidth / 2;
+    }
+    return padding.left + ((date.getTime() - firstTime) / (lastTime - firstTime)) * usableWidth;
+  };
+  const mapY = (value) => padding.top + ((max - value) / range) * usableHeight;
   const zeroY = mapY(0);
   const coordinates = trend.points.map((point, index) => ({
-    x: trend.points.length > 1 ? paddingX + index * xStep : width / 2,
+    x: mapX(point.date, index),
     y: mapY(point.net),
     point,
   }));
@@ -6015,20 +6136,45 @@ function renderSharedDebtTrendSvg(trend) {
   const firstDate = formatDate(formatInputDate(trend.points[0].date));
   const lastPoint = getLast(trend.points);
   const lastDate = formatDate(formatInputDate(lastPoint.date));
+  const highPoint = trend.points.reduce((best, point) => (point.net > best.net ? point : best), trend.points[0]);
+  const lowPoint = trend.points.reduce((best, point) => (point.net < best.net ? point : best), trend.points[0]);
+  const yAxisValues = Array.from({ length: 5 }, (_, index) => max - (index / 4) * range);
+  const grid = yAxisValues
+    .map((value) => {
+      const y = mapY(value);
+      return `
+        <line class="debt-trend-grid" x1="${padding.left}" y1="${y.toFixed(2)}" x2="${width - padding.right}" y2="${y.toFixed(2)}"></line>
+        <text class="debt-trend-axis-label" x="${padding.left - 14}" y="${(y + 4).toFixed(2)}" text-anchor="end">${escapeHtml(formatCurrency(value))}</text>
+      `;
+    })
+    .join("");
+  const pointMarkers = coordinates
+    .filter((_, index) => trend.points.length <= 18 || index === 0 || index === trend.points.length - 1)
+    .map(
+      (coordinate) => `
+        <circle class="debt-trend-dot" cx="${coordinate.x.toFixed(2)}" cy="${coordinate.y.toFixed(2)}" r="4.5"></circle>
+      `
+    )
+    .join("");
 
   return `
     <div class="debt-trend" aria-label="Graphique de dette partagée">
+      <div class="debt-trend-head">
+        <span>Tendance des dettes partagées</span>
+        <strong>${escapeHtml(formatCurrency(lastPoint.net))}</strong>
+      </div>
       <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Évolution nette des dépenses partagées">
-        <line class="debt-trend-zero" x1="${paddingX}" y1="${zeroY.toFixed(2)}" x2="${width - paddingX}" y2="${zeroY.toFixed(2)}"></line>
+        ${grid}
+        <line class="debt-trend-zero" x1="${padding.left}" y1="${zeroY.toFixed(2)}" x2="${width - padding.right}" y2="${zeroY.toFixed(2)}"></line>
         <path class="debt-trend-line" d="${escapeHtml(path)}"></path>
-        ${coordinates
-          .map((coordinate) => `<circle class="debt-trend-dot" cx="${coordinate.x.toFixed(2)}" cy="${coordinate.y.toFixed(2)}" r="3"></circle>`)
-          .join("")}
+        ${pointMarkers}
+        <text class="debt-trend-date-label" x="${padding.left}" y="${height - 14}" text-anchor="start">${escapeHtml(firstDate)}</text>
+        <text class="debt-trend-date-label" x="${width - padding.right}" y="${height - 14}" text-anchor="end">${escapeHtml(lastDate)}</text>
       </svg>
       <div class="debt-trend-meta">
-        <span>${escapeHtml(firstDate)}</span>
-        <strong>${escapeHtml(formatCurrency(lastPoint.net))}</strong>
-        <span>${escapeHtml(lastDate)}</span>
+        <span>Plus bas ${escapeHtml(formatCurrency(lowPoint.net))}</span>
+        <span>${escapeHtml(trend.points.length)} mouvement${trend.points.length > 1 ? "s" : ""}</span>
+        <span>Plus haut ${escapeHtml(formatCurrency(highPoint.net))}</span>
       </div>
     </div>
   `;
@@ -6153,7 +6299,7 @@ function buildProjection(months, selection = null) {
       date,
       delta: -Math.abs(item.amount || 0),
       kind: "shared_expense",
-      meta: debt ? `${debt.fromOwner} doit ${formatCurrency(debt.amount)}` : "Dépense commune",
+      meta: debt ? `${formatOwnerLabel(debt.fromOwner)} doit ${formatCurrency(debt.amount)}` : "Dépense commune",
     });
   });
   state.transactions.filter(matchesOwner).forEach((item) => {
@@ -6219,10 +6365,12 @@ function buildProjection(months, selection = null) {
   };
 }
 
-function expandRecurring(item, kind, delta, start, end) {
+function expandRecurring(item, kind, delta, start, end, collection = "") {
   let cursor = parseDate(item.nextDate);
   const events = [];
   let guard = 0;
+  let occurrenceIndex = 0;
+  const occurrenceLimit = parseRecurringEndCount(item.endCount);
   const recurringEnd = item.endDate ? parseDate(item.endDate) : end;
   const effectiveEnd = recurringEnd < end ? recurringEnd : end;
   if (Number.isNaN(cursor.getTime())) {
@@ -6232,14 +6380,21 @@ function expandRecurring(item, kind, delta, start, end) {
     return events;
   }
 
-  while (cursor < start && cursor <= effectiveEnd && guard < 200) {
+  while (
+    cursor < start &&
+    cursor <= effectiveEnd &&
+    (!occurrenceLimit || occurrenceIndex < occurrenceLimit) &&
+    guard < 200
+  ) {
     cursor = advanceDate(cursor, item.frequency);
     guard += 1;
+    occurrenceIndex += 1;
   }
-  while (cursor <= effectiveEnd && guard < 600) {
-    events.push({ id: item.id, label: item.label, owner: item.owner, date: cursor, delta, kind });
+  while (cursor <= effectiveEnd && (!occurrenceLimit || occurrenceIndex < occurrenceLimit) && guard < 600) {
+    events.push({ id: item.id, label: item.label, owner: item.owner, date: cursor, delta, kind, collection });
     cursor = advanceDate(cursor, item.frequency);
     guard += 1;
+    occurrenceIndex += 1;
   }
   return events;
 }
@@ -6541,6 +6696,11 @@ function parseAmount(value) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
+function parseRecurringEndCount(value) {
+  const count = Math.floor(parseAmount(value));
+  return Number.isFinite(count) && count > 0 ? Math.min(count, 600) : 0;
+}
+
 function roundUpCurrency(value) {
   return Math.ceil((value || 0) * 100) / 100;
 }
@@ -6664,6 +6824,9 @@ function formatInputDate(date) {
 }
 
 function formatCurrency(value) {
+  if (privacyUiState.enabled) {
+    return "••• $";
+  }
   return new Intl.NumberFormat("fr-CA", {
     style: "currency",
     currency: "CAD",
@@ -6673,6 +6836,9 @@ function formatCurrency(value) {
 }
 
 function formatSignedCurrency(value) {
+  if (privacyUiState.enabled) {
+    return `${value >= 0 ? "+" : "-"}••• $`;
+  }
   return `${value >= 0 ? "+" : "-"}${formatCurrency(Math.abs(value))}`;
 }
 
@@ -6826,6 +6992,7 @@ function sanitizeOwnedItem(item, household, accounts) {
     nextDate: textValue(item.nextDate),
     date: textValue(item.date),
     endDate: textValue(item.endDate),
+    endCount: parseRecurringEndCount(item.endCount),
     category: textValue(item.category),
     notes: textValue(item.notes),
     amount: parseAmount(item.amount),
@@ -7060,10 +7227,7 @@ function formatAccountHolder(holder) {
   if (holder === ACCOUNT_HOLDERS.shared) {
     return "Commun";
   }
-  if (holder === ACCOUNT_HOLDERS.partnerTwo) {
-    return state.household.partnerTwo || "Personne 2";
-  }
-  return state.household.partnerOne || "Personne 1";
+  return formatHouseholdMemberLabel(holder);
 }
 
 function isSharedHolder(holder) {
@@ -7074,7 +7238,39 @@ function isSharedOwner(owner, accounts = state.accounts) {
   return isSharedHolder(getAccountByOwner(owner, accounts)?.holder);
 }
 
+function formatHouseholdMemberLabel(holder) {
+  if (privacyUiState.enabled) {
+    if (holder === ACCOUNT_HOLDERS.partnerOne) {
+      return "Personne 1";
+    }
+    if (holder === ACCOUNT_HOLDERS.partnerTwo) {
+      return "Personne 2";
+    }
+  }
+
+  if (holder === ACCOUNT_HOLDERS.partnerOne) {
+    return state.household.partnerOne || "Personne 1";
+  }
+  if (holder === ACCOUNT_HOLDERS.partnerTwo) {
+    return state.household.partnerTwo || "Personne 2";
+  }
+  return "Commun";
+}
+
 function formatOwnerLabel(owner) {
+  if (privacyUiState.enabled) {
+    const account = getAccountByOwner(owner);
+    if (account?.holder === ACCOUNT_HOLDERS.partnerOne) {
+      return account.kind === "savings" ? "Épargne 1" : "Compte 1";
+    }
+    if (account?.holder === ACCOUNT_HOLDERS.partnerTwo) {
+      return account.kind === "savings" ? "Épargne 2" : "Compte 2";
+    }
+    if (isSharedHolder(account?.holder)) {
+      return "Compte commun";
+    }
+    return "Compte";
+  }
   return textValue(owner) || "-";
 }
 
@@ -7363,7 +7559,7 @@ function getOwnerOptions(options = {}) {
 
   return accounts.map((account) => ({
     value: account.owner,
-    label: account.owner,
+    label: formatOwnerLabel(account.owner),
   }));
 }
 

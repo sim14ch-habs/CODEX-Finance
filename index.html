@@ -18,14 +18,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260414-4">
+    <link rel="stylesheet" href="styles.css?v=20260420-1">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero panel">
         <div class="hero-copy">
           <p class="eyebrow">Budget couple / GitHub Pages</p>
-          <p class="eyebrow">Build 2026-04-14 / finance-qol</p>
+          <p class="eyebrow">Build 2026-04-20 / privacy-debt-graph</p>
           <h1>Suivez vos finances à deux et voyez où va votre solde.</h1>
           <p class="hero-text">
             Entrez vos paies, vos factures, vos contributions d'épargne et vos
@@ -97,6 +97,7 @@
         <button class="table-button edit" type="button" data-quick-action="transfer">+ Virement</button>
         <button class="table-button edit" type="button" data-quick-action="mortgage">Comparer une hypothèque</button>
         <button class="table-button edit" type="button" data-quick-action="backup">Sauvegarde datée</button>
+        <button id="privacyModeBtn" class="table-button edit privacy-toggle" type="button" data-quick-action="privacy" aria-pressed="false">Mode confidentialité</button>
       </div>
 
       <main class="layout">
@@ -1019,9 +1020,14 @@
                 <input name="nextDate" type="date">
               </label>
               <label>
-                Fin de série
+                Fin de série (optionnel)
                 <input name="endDate" type="date">
               </label>
+              <label>
+                Nombre d'occurrences (optionnel)
+                <input name="endCount" type="number" min="0" step="1" placeholder="15">
+              </label>
+              <p class="helper-text form-helper">Laisse la date de fin et le nombre d'occurrences vides pour une paie sans fin.</p>
               <div class="form-actions">
                 <button class="button primary" type="submit">Ajouter / mettre à jour</button>
                 <button class="button ghost form-reset" data-form="paycheckForm" type="button">Vider</button>
@@ -1089,6 +1095,15 @@
                 Prochaine date
                 <input name="nextDate" type="date">
               </label>
+              <label>
+                Fin de série (optionnel)
+                <input name="endDate" type="date">
+              </label>
+              <label>
+                Nombre d'occurrences (optionnel)
+                <input name="endCount" type="number" min="0" step="1" placeholder="15">
+              </label>
+              <p class="helper-text form-helper">Laisse la date de fin et le nombre d'occurrences vides pour une facture sans fin.</p>
               <div class="form-actions">
                 <button class="button primary" type="submit">Ajouter / mettre à jour</button>
                 <button class="button ghost form-reset" data-form="billForm" type="button">Vider</button>
@@ -1450,7 +1465,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260318-2"></script>
-    <script src="app.js?v=20260414-4"></script>
+    <script src="app.js?v=20260420-1"></script>
   </body>
 </html>
 

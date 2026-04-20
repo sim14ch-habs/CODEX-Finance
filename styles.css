@@ -53,6 +53,24 @@ body::before {
   opacity: 0.35;
 }
 
+body.privacy-mode input,
+body.privacy-mode textarea,
+body.privacy-mode select {
+  color: transparent;
+  text-shadow: 0 0 10px rgba(19, 35, 29, 0.42);
+  caret-color: var(--primary);
+}
+
+body.privacy-mode input::placeholder,
+body.privacy-mode textarea::placeholder {
+  color: transparent;
+}
+
+body.privacy-mode #cloudUserEmail,
+body.privacy-mode #cloudInviteCode {
+  filter: blur(6px);
+}
+
 button,
 input,
 select,
@@ -155,6 +173,12 @@ textarea {
   margin: -8px auto 18px;
   max-width: 1180px;
   padding: 0 6px;
+}
+
+.privacy-toggle.is-active {
+  background: var(--surface-ink);
+  color: var(--surface-strong);
+  box-shadow: 0 10px 22px rgba(19, 35, 29, 0.18);
 }
 
 .panel {
@@ -703,7 +727,29 @@ textarea {
 }
 
 .debt-trend {
-  margin-top: 16px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(19, 35, 29, 0.08);
+}
+
+.debt-trend-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.debt-trend-head span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.debt-trend-head strong {
+  margin: 0;
+  font-size: 1.08rem;
 }
 
 .debt-trend svg {
@@ -713,24 +759,36 @@ textarea {
   overflow: visible;
 }
 
-.debt-trend-zero {
-  stroke: rgba(19, 35, 29, 0.16);
+.debt-trend-grid {
+  stroke: rgba(19, 35, 29, 0.08);
   stroke-width: 1;
-  stroke-dasharray: 4 5;
+}
+
+.debt-trend-axis-label,
+.debt-trend-date-label {
+  fill: var(--muted);
+  font-size: 0.76rem;
+}
+
+.debt-trend-zero {
+  stroke: rgba(217, 109, 48, 0.58);
+  stroke-width: 2;
+  stroke-dasharray: 7 7;
 }
 
 .debt-trend-line {
   fill: none;
   stroke: var(--primary);
-  stroke-width: 3;
+  stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
+  filter: drop-shadow(0 6px 8px rgba(21, 94, 99, 0.12));
 }
 
 .debt-trend-dot {
   fill: var(--primary);
   stroke: white;
-  stroke-width: 2;
+  stroke-width: 2.5;
 }
 
 .debt-trend-meta {
@@ -738,9 +796,10 @@ textarea {
   justify-content: space-between;
   gap: 10px;
   align-items: center;
-  margin-top: 8px;
+  margin-top: 6px;
   color: var(--muted);
   font-size: 0.82rem;
+  flex-wrap: wrap;
 }
 
 .debt-trend-meta strong {
@@ -1092,6 +1151,10 @@ textarea {
 .calendar-day-detail-item p {
   margin: 6px 0 0;
   color: var(--muted);
+}
+
+.calendar-event-actions {
+  margin-top: 10px;
 }
 
 .calendar-day-detail-item span {
@@ -1918,6 +1981,15 @@ svg {
   .calendar-day-detail-list,
   .mobile-entry-list {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-day-detail-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .calendar-day-detail-item > span {
+    align-self: flex-start;
   }
 
   [data-mobile-section="mortgage"],
